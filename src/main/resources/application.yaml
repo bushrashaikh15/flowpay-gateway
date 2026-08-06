@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: flowpay
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/flowpay_db
+    username: postgres
+    password: bush123
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: 8080
