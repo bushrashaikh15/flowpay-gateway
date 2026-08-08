@@ -29,12 +29,39 @@ public class PaymentIntentController {
     // Get All Payment Intents
     @GetMapping
     public List<PaymentIntentResponse> getAllPaymentIntents() {
+
         return paymentIntentService.getAllPaymentIntents();
     }
 
     // Get Payment Intent By ID
     @GetMapping("/{id}")
-    public PaymentIntentResponse getPaymentIntentById(@PathVariable Long id) {
+    public PaymentIntentResponse getPaymentIntentById(
+            @PathVariable Long id) {
+
         return paymentIntentService.getPaymentIntentById(id);
+    }
+
+    // Authorize Payment Intent
+    @PostMapping("/{id}/authorize")
+    public PaymentIntentResponse authorizePaymentIntent(
+            @PathVariable Long id) {
+
+        return paymentIntentService.authorizePaymentIntent(id);
+    }
+
+    // Capture Payment Intent
+    @PostMapping("/{id}/capture")
+    public PaymentIntentResponse capturePaymentIntent(
+            @PathVariable Long id) {
+
+        return paymentIntentService.capturePaymentIntent(id);
+    }
+
+    // Refund Payment Intent
+    @PostMapping("/{id}/refund")
+    public PaymentIntentResponse refundPaymentIntent(
+            @PathVariable Long id) {
+
+        return paymentIntentService.refundPaymentIntent(id);
     }
 }
