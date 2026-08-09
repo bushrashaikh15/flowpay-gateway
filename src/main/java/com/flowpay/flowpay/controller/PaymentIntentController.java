@@ -3,7 +3,6 @@ package com.flowpay.flowpay.controller;
 import com.flowpay.flowpay.dto.PaymentIntentRequest;
 import com.flowpay.flowpay.dto.PaymentIntentResponse;
 import com.flowpay.flowpay.service.PaymentIntentService;
-import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,22 +17,22 @@ public class PaymentIntentController {
         this.paymentIntentService = paymentIntentService;
     }
 
-    // Create Payment Intent
     @PostMapping
     public PaymentIntentResponse createPaymentIntent(
-            @Valid @RequestBody PaymentIntentRequest request) {
+            @RequestBody PaymentIntentRequest request,
+            @RequestHeader("Idempotency-Key") String idempotencyKey) {
 
-        return paymentIntentService.createPaymentIntent(request);
+        return paymentIntentService.createPaymentIntent(
+                request,
+                idempotencyKey
+        );
     }
 
-    // Get All Payment Intents
     @GetMapping
     public List<PaymentIntentResponse> getAllPaymentIntents() {
-
         return paymentIntentService.getAllPaymentIntents();
     }
 
-    // Get Payment Intent By ID
     @GetMapping("/{id}")
     public PaymentIntentResponse getPaymentIntentById(
             @PathVariable Long id) {
@@ -41,24 +40,21 @@ public class PaymentIntentController {
         return paymentIntentService.getPaymentIntentById(id);
     }
 
-    // Authorize Payment Intent
-    @PostMapping("/{id}/authorize")
+    @PutMapping("/{id}/authorize")
     public PaymentIntentResponse authorizePaymentIntent(
             @PathVariable Long id) {
 
         return paymentIntentService.authorizePaymentIntent(id);
     }
 
-    // Capture Payment Intent
-    @PostMapping("/{id}/capture")
+    @PutMapping("/{id}/capture")
     public PaymentIntentResponse capturePaymentIntent(
             @PathVariable Long id) {
 
         return paymentIntentService.capturePaymentIntent(id);
     }
 
-    // Refund Payment Intent
-    @PostMapping("/{id}/refund")
+    @PutMapping("/{id}/refund")
     public PaymentIntentResponse refundPaymentIntent(
             @PathVariable Long id) {
 
