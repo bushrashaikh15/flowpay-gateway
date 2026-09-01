@@ -6,6 +6,7 @@ import com.flowpay.flowpay.dto.PaymentIntentRequest;
 import com.flowpay.flowpay.dto.PaymentIntentResponse;
 import com.flowpay.flowpay.entity.Merchant;
 import com.flowpay.flowpay.entity.PaymentIntent;
+import com.flowpay.flowpay.enums.PaymentEventType;
 import com.flowpay.flowpay.enums.PaymentStatus;
 import com.flowpay.flowpay.repository.MerchantRepository;
 import com.flowpay.flowpay.repository.PaymentIntentRepository;
@@ -23,20 +24,26 @@ public class PaymentIntentService {
     private final MerchantRepository merchantRepository;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
+    private final WebhookEventService webhookEventService;
 
     public PaymentIntentService(
             PaymentIntentRepository paymentIntentRepository,
             MerchantRepository merchantRepository,
             StringRedisTemplate redisTemplate,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            WebhookEventService webhookEventService) {
 
         this.paymentIntentRepository = paymentIntentRepository;
         this.merchantRepository = merchantRepository;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
+        this.webhookEventService = webhookEventService;
     }
 
-    // Create Payment Intent with Idempotency
+    // ============================================================
+    // CREATE PAYMENT INTENT WITH IDEMPOTENCY
+    // ============================================================
+
     public PaymentIntentResponse createPaymentIntent(
             PaymentIntentRequest request,
             String idempotencyKey) {
@@ -47,19 +54,12 @@ public class PaymentIntentService {
                     "Idempotency-Key header is required");
         }
 
-        // Create a unique Redis key for this merchant + request
         String redisKey =
                 "idempotency:"
                         + request.getMerchantId()
                         + ":"
                         + idempotencyKey;
 
-        /*
-         * Try to reserve this idempotency key.
-         *
-         * If another request already reserved it,
-         * we do not create another PaymentIntent.
-         */
         Boolean keyCreated = redisTemplate
                 .opsForValue()
                 .setIfAbsent(
@@ -68,7 +68,7 @@ public class PaymentIntentService {
                         Duration.ofMinutes(5)
                 );
 
-        // Key already exists
+        // Idempotency key already exists
         if (Boolean.FALSE.equals(keyCreated)) {
 
             String cachedResponse =
@@ -105,12 +105,15 @@ public class PaymentIntentService {
 
             // Find merchant
             Merchant merchant =
-                    merchantRepository.findById(request.getMerchantId())
-                            .orElseThrow(() ->
-                                    new RuntimeException(
-                                            "Merchant not found"));
+                    merchantRepository.findById(
+                            request.getMerchantId()
+                    ).orElseThrow(() ->
+                            new RuntimeException(
+                                    "Merchant not found"
+                            )
+                    );
 
-            // Create PaymentIntent
+            // Create payment intent
             PaymentIntent paymentIntent =
                     new PaymentIntent();
 
@@ -123,6 +126,12 @@ public class PaymentIntentService {
             // Save to PostgreSQL
             PaymentIntent savedPayment =
                     paymentIntentRepository.save(paymentIntent);
+
+            // Create webhook event
+            webhookEventService.createWebhookEvent(
+                    savedPayment,
+                    PaymentEventType.PAYMENT_CREATED
+            );
 
             // Convert Entity → Response DTO
             PaymentIntentResponse response =
@@ -143,11 +152,7 @@ public class PaymentIntentService {
 
         } catch (Exception e) {
 
-            /*
-             * If payment creation fails,
-             * remove the idempotency key so the client
-             * can safely retry.
-             */
+            // Allow safe retry if creation failed
             redisTemplate.delete(redisKey);
 
             throw new RuntimeException(
@@ -157,7 +162,10 @@ public class PaymentIntentService {
         }
     }
 
-    // Get All Payment Intents
+    // ============================================================
+    // GET ALL PAYMENT INTENTS
+    // ============================================================
+
     public List<PaymentIntentResponse> getAllPaymentIntents() {
 
         return paymentIntentRepository.findAll()
@@ -166,97 +174,150 @@ public class PaymentIntentService {
                 .toList();
     }
 
-    // Get Payment Intent By ID
+    // ============================================================
+    // GET PAYMENT INTENT BY ID
+    // ============================================================
+
     public PaymentIntentResponse getPaymentIntentById(Long id) {
 
         PaymentIntent paymentIntent =
                 paymentIntentRepository.findById(id)
                         .orElseThrow(() ->
                                 new RuntimeException(
-                                        "Payment Intent not found"));
+                                        "Payment Intent not found"
+                                )
+                        );
 
         return mapToResponse(paymentIntent);
     }
 
-    // Authorize Payment Intent
+    // ============================================================
+    // AUTHORIZE PAYMENT INTENT
+    // CREATED → AUTHORIZED
+    // ============================================================
+
     public PaymentIntentResponse authorizePaymentIntent(Long id) {
 
         PaymentIntent paymentIntent =
                 paymentIntentRepository.findById(id)
                         .orElseThrow(() ->
                                 new RuntimeException(
-                                        "Payment Intent not found"));
+                                        "Payment Intent not found"
+                                )
+                        );
 
-        // CREATED → AUTHORIZED
+        // Validate state transition
         if (paymentIntent.getStatus() != PaymentStatus.CREATED) {
 
             throw new RuntimeException(
-                    "Payment can only be authorized from CREATED status");
+                    "Payment can only be authorized from CREATED status"
+            );
         }
 
+        // Change state
         paymentIntent.setStatus(
                 PaymentStatus.AUTHORIZED
         );
 
+        // Save
         PaymentIntent savedPayment =
                 paymentIntentRepository.save(paymentIntent);
+
+        // Create webhook
+        webhookEventService.createWebhookEvent(
+                savedPayment,
+                PaymentEventType.PAYMENT_AUTHORIZED
+        );
 
         return mapToResponse(savedPayment);
     }
 
-    // Capture Payment Intent
+    // ============================================================
+    // CAPTURE PAYMENT INTENT
+    // AUTHORIZED → CAPTURED
+    // ============================================================
+
     public PaymentIntentResponse capturePaymentIntent(Long id) {
 
         PaymentIntent paymentIntent =
                 paymentIntentRepository.findById(id)
                         .orElseThrow(() ->
                                 new RuntimeException(
-                                        "Payment Intent not found"));
+                                        "Payment Intent not found"
+                                )
+                        );
 
-        // AUTHORIZED → CAPTURED
+        // Validate state transition
         if (paymentIntent.getStatus() != PaymentStatus.AUTHORIZED) {
 
             throw new RuntimeException(
-                    "Payment can only be captured from AUTHORIZED status");
+                    "Payment can only be captured from AUTHORIZED status"
+            );
         }
 
+        // Change state
         paymentIntent.setStatus(
                 PaymentStatus.CAPTURED
         );
 
+        // Save
         PaymentIntent savedPayment =
                 paymentIntentRepository.save(paymentIntent);
+
+        // Create webhook
+        webhookEventService.createWebhookEvent(
+                savedPayment,
+                PaymentEventType.PAYMENT_CAPTURED
+        );
 
         return mapToResponse(savedPayment);
     }
 
-    // Refund Payment Intent
+    // ============================================================
+    // REFUND PAYMENT INTENT
+    // CAPTURED → REFUNDED
+    // ============================================================
+
     public PaymentIntentResponse refundPaymentIntent(Long id) {
 
         PaymentIntent paymentIntent =
                 paymentIntentRepository.findById(id)
                         .orElseThrow(() ->
                                 new RuntimeException(
-                                        "Payment Intent not found"));
+                                        "Payment Intent not found"
+                                )
+                        );
 
-        // CAPTURED → REFUNDED
+        // Validate state transition
         if (paymentIntent.getStatus() != PaymentStatus.CAPTURED) {
 
             throw new RuntimeException(
-                    "Payment can only be refunded from CAPTURED status");
+                    "Payment can only be refunded from CAPTURED status"
+            );
         }
 
+        // Change state
         paymentIntent.setStatus(
                 PaymentStatus.REFUNDED
         );
 
+        // Save
         PaymentIntent savedPayment =
                 paymentIntentRepository.save(paymentIntent);
+
+        // Create webhook
+        webhookEventService.createWebhookEvent(
+                savedPayment,
+                PaymentEventType.PAYMENT_REFUNDED
+        );
 
         return mapToResponse(savedPayment);
     }
 
-    // Convert Entity → Response DTO
+    // ============================================================
+    // ENTITY → RESPONSE DTO
+    // ============================================================
+
     private PaymentIntentResponse mapToResponse(
             PaymentIntent paymentIntent) {
 
