@@ -6,12 +6,16 @@ import com.flowpay.flowpay.dto.PaymentIntentRequest;
 import com.flowpay.flowpay.dto.PaymentIntentResponse;
 import com.flowpay.flowpay.entity.Merchant;
 import com.flowpay.flowpay.entity.PaymentIntent;
+import com.flowpay.flowpay.entity.Transaction;
 import com.flowpay.flowpay.enums.PaymentEventType;
 import com.flowpay.flowpay.enums.PaymentStatus;
+import com.flowpay.flowpay.enums.TransactionType;
 import com.flowpay.flowpay.repository.MerchantRepository;
 import com.flowpay.flowpay.repository.PaymentIntentRepository;
+import com.flowpay.flowpay.repository.TransactionRepository;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -22,22 +26,28 @@ public class PaymentIntentService {
 
     private final PaymentIntentRepository paymentIntentRepository;
     private final MerchantRepository merchantRepository;
+    private final TransactionRepository transactionRepository;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final WebhookEventService webhookEventService;
+    private final AuditLogService auditLogService;
 
     public PaymentIntentService(
             PaymentIntentRepository paymentIntentRepository,
             MerchantRepository merchantRepository,
+            TransactionRepository transactionRepository,
             StringRedisTemplate redisTemplate,
             ObjectMapper objectMapper,
-            WebhookEventService webhookEventService) {
+            WebhookEventService webhookEventService,
+            AuditLogService auditLogService) {
 
         this.paymentIntentRepository = paymentIntentRepository;
         this.merchantRepository = merchantRepository;
+        this.transactionRepository = transactionRepository;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.webhookEventService = webhookEventService;
+        this.auditLogService = auditLogService;
     }
 
     // ============================================================
@@ -68,7 +78,10 @@ public class PaymentIntentService {
                         Duration.ofMinutes(5)
                 );
 
-        // Idempotency key already exists
+        // ========================================================
+        // IDEMPOTENCY KEY ALREADY EXISTS
+        // ========================================================
+
         if (Boolean.FALSE.equals(keyCreated)) {
 
             String cachedResponse =
@@ -103,7 +116,10 @@ public class PaymentIntentService {
 
         try {
 
-            // Find merchant
+            // ====================================================
+            // FIND MERCHANT
+            // ====================================================
+
             Merchant merchant =
                     merchantRepository.findById(
                             request.getMerchantId()
@@ -113,35 +129,83 @@ public class PaymentIntentService {
                             )
                     );
 
-            // Create payment intent
+            // ====================================================
+            // CREATE PAYMENT INTENT
+            // ====================================================
+
             PaymentIntent paymentIntent =
                     new PaymentIntent();
 
-            paymentIntent.setAmount(request.getAmount());
-            paymentIntent.setCurrency(request.getCurrency());
-            paymentIntent.setStatus(PaymentStatus.CREATED);
-            paymentIntent.setCreatedAt(LocalDateTime.now());
-            paymentIntent.setMerchant(merchant);
+            paymentIntent.setAmount(
+                    request.getAmount()
+            );
 
-            // Save to PostgreSQL
+            paymentIntent.setCurrency(
+                    request.getCurrency()
+            );
+
+            paymentIntent.setStatus(
+                    PaymentStatus.CREATED
+            );
+
+            paymentIntent.setCreatedAt(
+                    LocalDateTime.now()
+            );
+
+            paymentIntent.setMerchant(
+                    merchant
+            );
+
+            // ====================================================
+            // SAVE PAYMENT INTENT
+            // ====================================================
+
             PaymentIntent savedPayment =
-                    paymentIntentRepository.save(paymentIntent);
+                    paymentIntentRepository.save(
+                            paymentIntent
+                    );
 
-            // Create webhook event
+            // ====================================================
+            // CREATE WEBHOOK EVENT
+            // ====================================================
+
             webhookEventService.createWebhookEvent(
                     savedPayment,
                     PaymentEventType.PAYMENT_CREATED
             );
 
-            // Convert Entity → Response DTO
+            // ====================================================
+            // CREATE AUDIT LOG
+            // ====================================================
+
+            auditLogService.createAuditLog(
+                    savedPayment.getId(),
+                    "PAYMENT_CREATED",
+                    "Payment intent created"
+            );
+
+            // ====================================================
+            // CONVERT ENTITY → RESPONSE DTO
+            // ====================================================
+
             PaymentIntentResponse response =
-                    mapToResponse(savedPayment);
+                    mapToResponse(
+                            savedPayment
+                    );
 
-            // Convert response to JSON
+            // ====================================================
+            // CONVERT RESPONSE → JSON
+            // ====================================================
+
             String responseJson =
-                    objectMapper.writeValueAsString(response);
+                    objectMapper.writeValueAsString(
+                            response
+                    );
 
-            // Store final response in Redis
+            // ====================================================
+            // STORE FINAL RESPONSE IN REDIS
+            // ====================================================
+
             redisTemplate.opsForValue().set(
                     redisKey,
                     responseJson,
@@ -188,7 +252,9 @@ public class PaymentIntentService {
                                 )
                         );
 
-        return mapToResponse(paymentIntent);
+        return mapToResponse(
+                paymentIntent
+        );
     }
 
     // ============================================================
@@ -196,6 +262,7 @@ public class PaymentIntentService {
     // CREATED → AUTHORIZED
     // ============================================================
 
+    @Transactional
     public PaymentIntentResponse authorizePaymentIntent(Long id) {
 
         PaymentIntent paymentIntent =
@@ -206,30 +273,57 @@ public class PaymentIntentService {
                                 )
                         );
 
-        // Validate state transition
-        if (paymentIntent.getStatus() != PaymentStatus.CREATED) {
+        // ========================================================
+        // VALIDATE STATE TRANSITION
+        // ========================================================
+
+        if (paymentIntent.getStatus()
+                != PaymentStatus.CREATED) {
 
             throw new RuntimeException(
                     "Payment can only be authorized from CREATED status"
             );
         }
 
-        // Change state
+        // ========================================================
+        // CHANGE STATUS
+        // ========================================================
+
         paymentIntent.setStatus(
                 PaymentStatus.AUTHORIZED
         );
 
-        // Save
-        PaymentIntent savedPayment =
-                paymentIntentRepository.save(paymentIntent);
+        // ========================================================
+        // SAVE PAYMENT
+        // ========================================================
 
-        // Create webhook
+        PaymentIntent savedPayment =
+                paymentIntentRepository.save(
+                        paymentIntent
+                );
+
+        // ========================================================
+        // CREATE WEBHOOK EVENT
+        // ========================================================
+
         webhookEventService.createWebhookEvent(
                 savedPayment,
                 PaymentEventType.PAYMENT_AUTHORIZED
         );
 
-        return mapToResponse(savedPayment);
+        // ========================================================
+        // CREATE AUDIT LOG
+        // ========================================================
+
+        auditLogService.createAuditLog(
+                savedPayment.getId(),
+                "PAYMENT_AUTHORIZED",
+                "Payment intent authorized"
+        );
+
+        return mapToResponse(
+                savedPayment
+        );
     }
 
     // ============================================================
@@ -237,6 +331,7 @@ public class PaymentIntentService {
     // AUTHORIZED → CAPTURED
     // ============================================================
 
+    @Transactional
     public PaymentIntentResponse capturePaymentIntent(Long id) {
 
         PaymentIntent paymentIntent =
@@ -247,30 +342,92 @@ public class PaymentIntentService {
                                 )
                         );
 
-        // Validate state transition
-        if (paymentIntent.getStatus() != PaymentStatus.AUTHORIZED) {
+        // ========================================================
+        // VALIDATE STATE TRANSITION
+        // ========================================================
+
+        if (paymentIntent.getStatus()
+                != PaymentStatus.AUTHORIZED) {
 
             throw new RuntimeException(
                     "Payment can only be captured from AUTHORIZED status"
             );
         }
 
-        // Change state
+        // ========================================================
+        // CHANGE STATUS
+        // ========================================================
+
         paymentIntent.setStatus(
                 PaymentStatus.CAPTURED
         );
 
-        // Save
-        PaymentIntent savedPayment =
-                paymentIntentRepository.save(paymentIntent);
+        // ========================================================
+        // SAVE PAYMENT
+        // ========================================================
 
-        // Create webhook
+        PaymentIntent savedPayment =
+                paymentIntentRepository.save(
+                        paymentIntent
+                );
+
+        // ========================================================
+        // CREATE PAYMENT TRANSACTION
+        // ========================================================
+
+        Transaction transaction =
+                new Transaction();
+
+        transaction.setAmount(
+                savedPayment.getAmount()
+        );
+
+        transaction.setCurrency(
+                savedPayment.getCurrency()
+        );
+
+        transaction.setType(
+                TransactionType.PAYMENT
+        );
+
+        transaction.setStatus(
+                PaymentStatus.CAPTURED
+        );
+
+        transaction.setCreatedAt(
+                LocalDateTime.now()
+        );
+
+        transaction.setPaymentIntent(
+                savedPayment
+        );
+
+        transactionRepository.save(
+                transaction
+        );
+
+        // ========================================================
+        // CREATE WEBHOOK EVENT
+        // ========================================================
+
         webhookEventService.createWebhookEvent(
                 savedPayment,
                 PaymentEventType.PAYMENT_CAPTURED
         );
 
-        return mapToResponse(savedPayment);
+        // ========================================================
+        // CREATE AUDIT LOG
+        // ========================================================
+
+        auditLogService.createAuditLog(
+                savedPayment.getId(),
+                "PAYMENT_CAPTURED",
+                "Payment intent captured"
+        );
+
+        return mapToResponse(
+                savedPayment
+        );
     }
 
     // ============================================================
@@ -278,6 +435,7 @@ public class PaymentIntentService {
     // CAPTURED → REFUNDED
     // ============================================================
 
+    @Transactional
     public PaymentIntentResponse refundPaymentIntent(Long id) {
 
         PaymentIntent paymentIntent =
@@ -288,30 +446,92 @@ public class PaymentIntentService {
                                 )
                         );
 
-        // Validate state transition
-        if (paymentIntent.getStatus() != PaymentStatus.CAPTURED) {
+        // ========================================================
+        // VALIDATE STATE TRANSITION
+        // ========================================================
+
+        if (paymentIntent.getStatus()
+                != PaymentStatus.CAPTURED) {
 
             throw new RuntimeException(
                     "Payment can only be refunded from CAPTURED status"
             );
         }
 
-        // Change state
+        // ========================================================
+        // CHANGE PAYMENT STATUS
+        // ========================================================
+
         paymentIntent.setStatus(
                 PaymentStatus.REFUNDED
         );
 
-        // Save
-        PaymentIntent savedPayment =
-                paymentIntentRepository.save(paymentIntent);
+        // ========================================================
+        // SAVE PAYMENT
+        // ========================================================
 
-        // Create webhook
+        PaymentIntent savedPayment =
+                paymentIntentRepository.save(
+                        paymentIntent
+                );
+
+        // ========================================================
+        // CREATE REFUND TRANSACTION
+        // ========================================================
+
+        Transaction refundTransaction =
+                new Transaction();
+
+        refundTransaction.setAmount(
+                savedPayment.getAmount()
+        );
+
+        refundTransaction.setCurrency(
+                savedPayment.getCurrency()
+        );
+
+        refundTransaction.setType(
+                TransactionType.REFUND
+        );
+
+        refundTransaction.setStatus(
+                PaymentStatus.REFUNDED
+        );
+
+        refundTransaction.setCreatedAt(
+                LocalDateTime.now()
+        );
+
+        refundTransaction.setPaymentIntent(
+                savedPayment
+        );
+
+        transactionRepository.save(
+                refundTransaction
+        );
+
+        // ========================================================
+        // CREATE WEBHOOK EVENT
+        // ========================================================
+
         webhookEventService.createWebhookEvent(
                 savedPayment,
                 PaymentEventType.PAYMENT_REFUNDED
         );
 
-        return mapToResponse(savedPayment);
+        // ========================================================
+        // CREATE AUDIT LOG
+        // ========================================================
+
+        auditLogService.createAuditLog(
+                savedPayment.getId(),
+                "PAYMENT_REFUNDED",
+                "Payment intent refunded"
+        );
+
+        return mapToResponse(
+                savedPayment
+        );
     }
 
     // ============================================================
@@ -324,11 +544,25 @@ public class PaymentIntentService {
         PaymentIntentResponse response =
                 new PaymentIntentResponse();
 
-        response.setId(paymentIntent.getId());
-        response.setAmount(paymentIntent.getAmount());
-        response.setCurrency(paymentIntent.getCurrency());
-        response.setStatus(paymentIntent.getStatus());
-        response.setCreatedAt(paymentIntent.getCreatedAt());
+        response.setId(
+                paymentIntent.getId()
+        );
+
+        response.setAmount(
+                paymentIntent.getAmount()
+        );
+
+        response.setCurrency(
+                paymentIntent.getCurrency()
+        );
+
+        response.setStatus(
+                paymentIntent.getStatus()
+        );
+
+        response.setCreatedAt(
+                paymentIntent.getCreatedAt()
+        );
 
         response.setMerchantName(
                 paymentIntent
