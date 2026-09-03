@@ -10,6 +10,8 @@ import com.flowpay.flowpay.entity.Transaction;
 import com.flowpay.flowpay.enums.PaymentEventType;
 import com.flowpay.flowpay.enums.PaymentStatus;
 import com.flowpay.flowpay.enums.TransactionType;
+import com.flowpay.flowpay.exception.MerchantNotFoundException;
+import com.flowpay.flowpay.exception.PaymentNotFoundException;
 import com.flowpay.flowpay.repository.MerchantRepository;
 import com.flowpay.flowpay.repository.PaymentIntentRepository;
 import com.flowpay.flowpay.repository.TransactionRepository;
@@ -61,7 +63,8 @@ public class PaymentIntentService {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
 
             throw new RuntimeException(
-                    "Idempotency-Key header is required");
+                    "Idempotency-Key header is required"
+            );
         }
 
         String redisKey =
@@ -92,7 +95,8 @@ public class PaymentIntentService {
             if ("PROCESSING".equals(cachedResponse)) {
 
                 throw new RuntimeException(
-                        "Payment request is already being processed");
+                        "Payment request is already being processed"
+                );
             }
 
             if (cachedResponse != null) {
@@ -124,8 +128,9 @@ public class PaymentIntentService {
                     merchantRepository.findById(
                             request.getMerchantId()
                     ).orElseThrow(() ->
-                            new RuntimeException(
-                                    "Merchant not found"
+                            new MerchantNotFoundException(
+                                    "Merchant not found with id: "
+                                            + request.getMerchantId()
                             )
                     );
 
@@ -214,6 +219,13 @@ public class PaymentIntentService {
 
             return response;
 
+        } catch (MerchantNotFoundException e) {
+
+            // Allow safe retry if merchant was invalid
+            redisTemplate.delete(redisKey);
+
+            throw e;
+
         } catch (Exception e) {
 
             // Allow safe retry if creation failed
@@ -247,8 +259,9 @@ public class PaymentIntentService {
         PaymentIntent paymentIntent =
                 paymentIntentRepository.findById(id)
                         .orElseThrow(() ->
-                                new RuntimeException(
-                                        "Payment Intent not found"
+                                new PaymentNotFoundException(
+                                        "Payment intent not found with id: "
+                                                + id
                                 )
                         );
 
@@ -268,8 +281,9 @@ public class PaymentIntentService {
         PaymentIntent paymentIntent =
                 paymentIntentRepository.findById(id)
                         .orElseThrow(() ->
-                                new RuntimeException(
-                                        "Payment Intent not found"
+                                new PaymentNotFoundException(
+                                        "Payment intent not found with id: "
+                                                + id
                                 )
                         );
 
@@ -337,8 +351,9 @@ public class PaymentIntentService {
         PaymentIntent paymentIntent =
                 paymentIntentRepository.findById(id)
                         .orElseThrow(() ->
-                                new RuntimeException(
-                                        "Payment Intent not found"
+                                new PaymentNotFoundException(
+                                        "Payment intent not found with id: "
+                                                + id
                                 )
                         );
 
@@ -441,8 +456,9 @@ public class PaymentIntentService {
         PaymentIntent paymentIntent =
                 paymentIntentRepository.findById(id)
                         .orElseThrow(() ->
-                                new RuntimeException(
-                                        "Payment Intent not found"
+                                new PaymentNotFoundException(
+                                        "Payment intent not found with id: "
+                                                + id
                                 )
                         );
 
