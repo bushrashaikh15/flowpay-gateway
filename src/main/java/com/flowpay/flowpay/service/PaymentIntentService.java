@@ -15,10 +15,12 @@ import com.flowpay.flowpay.exception.PaymentNotFoundException;
 import com.flowpay.flowpay.repository.MerchantRepository;
 import com.flowpay.flowpay.repository.PaymentIntentRepository;
 import com.flowpay.flowpay.repository.TransactionRepository;
+import com.flowpay.flowpay.specification.PaymentIntentSpecification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -303,20 +305,93 @@ public class PaymentIntentService {
     }
 
     // ============================================================
-    // GET ALL PAYMENT INTENTS WITH PAGINATION
+    // GET ALL PAYMENT INTENTS WITH FILTERING + PAGINATION
     // ============================================================
 
     public Page<PaymentIntentResponse> getAllPaymentIntents(
-            Pageable pageable) {
+            Pageable pageable,
+            PaymentStatus status,
+            String currency,
+            Double minAmount,
+            Double maxAmount) {
 
         logger.info(
-                "Fetching payment intents - page: {}, size: {}",
+                "Fetching payment intents - page: {}, size: {}, status: {}, currency: {}, minAmount: {}, maxAmount: {}",
                 pageable.getPageNumber(),
-                pageable.getPageSize()
+                pageable.getPageSize(),
+                status,
+                currency,
+                minAmount,
+                maxAmount
         );
 
+        // ========================================================
+        // CREATE EMPTY SPECIFICATION
+        // ========================================================
+        // Do NOT use Specification.where(null)
+        // because Spring Boot 4 / Spring Data JPA has
+        // multiple overloaded where() methods.
+
+        Specification<PaymentIntent> specification =
+                (root, query, criteriaBuilder) -> null;
+
+        // ========================================================
+        // STATUS FILTER
+        // ========================================================
+
+        if (status != null) {
+
+            specification = specification.and(
+                    PaymentIntentSpecification.hasStatus(status)
+            );
+        }
+
+        // ========================================================
+        // CURRENCY FILTER
+        // ========================================================
+
+        if (currency != null && !currency.isBlank()) {
+
+            specification = specification.and(
+                    PaymentIntentSpecification.hasCurrency(currency)
+            );
+        }
+
+        // ========================================================
+        // MINIMUM AMOUNT FILTER
+        // ========================================================
+
+        if (minAmount != null) {
+
+            specification = specification.and(
+                    PaymentIntentSpecification.amountGreaterThanOrEqualTo(
+                            minAmount
+                    )
+            );
+        }
+
+        // ========================================================
+        // MAXIMUM AMOUNT FILTER
+        // ========================================================
+
+        if (maxAmount != null) {
+
+            specification = specification.and(
+                    PaymentIntentSpecification.amountLessThanOrEqualTo(
+                            maxAmount
+                    )
+            );
+        }
+
+        // ========================================================
+        // APPLY FILTERS + PAGINATION
+        // ========================================================
+
         return paymentIntentRepository
-                .findAll(pageable)
+                .findAll(
+                        specification,
+                        pageable
+                )
                 .map(this::mapToResponse);
     }
 

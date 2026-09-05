@@ -2,6 +2,7 @@ package com.flowpay.flowpay.controller;
 
 import com.flowpay.flowpay.dto.PaymentIntentRequest;
 import com.flowpay.flowpay.dto.PaymentIntentResponse;
+import com.flowpay.flowpay.enums.PaymentStatus;
 import com.flowpay.flowpay.service.PaymentIntentService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -36,15 +37,24 @@ public class PaymentIntentController {
     }
 
     // ============================================================
-    // GET ALL PAYMENT INTENTS WITH PAGINATION
+    // GET PAYMENT INTENTS
+    // WITH FILTERING + PAGINATION
     // ============================================================
 
     @GetMapping
     public Page<PaymentIntentResponse> getAllPaymentIntents(
-            Pageable pageable) {
+            Pageable pageable,
+            @RequestParam(required = false) PaymentStatus status,
+            @RequestParam(required = false) String currency,
+            @RequestParam(required = false) Double minAmount,
+            @RequestParam(required = false) Double maxAmount) {
 
         return paymentIntentService.getAllPaymentIntents(
-                pageable
+                pageable,
+                status,
+                currency,
+                minAmount,
+                maxAmount
         );
     }
 
@@ -61,7 +71,6 @@ public class PaymentIntentController {
 
     // ============================================================
     // AUTHORIZE
-    // CREATED → AUTHORIZED
     // ============================================================
 
     @PutMapping("/{id}/authorize")
@@ -73,7 +82,6 @@ public class PaymentIntentController {
 
     // ============================================================
     // CAPTURE
-    // AUTHORIZED → CAPTURED
     // ============================================================
 
     @PutMapping("/{id}/capture")
@@ -85,7 +93,6 @@ public class PaymentIntentController {
 
     // ============================================================
     // REFUND
-    // CAPTURED → REFUNDED
     // ============================================================
 
     @PutMapping("/{id}/refund")
