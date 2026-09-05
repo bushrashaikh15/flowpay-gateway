@@ -3,9 +3,9 @@ spring:
     name: flowpay
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/flowpay_db
-    username: postgres
-    password: bush123
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/flowpay_db}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD}
 
   jpa:
     hibernate:
@@ -18,12 +18,12 @@ spring:
 
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
 
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
 
 flowpay:
   webhook:
-    secret: flowpay-webhook-secret
+    secret: ${FLOWPAY_WEBHOOK_SECRET}
