@@ -23,3 +23,7 @@ spring:
 
 server:
   port: 8080
+
+flowpay:
+  webhook:
+    secret: flowpay-webhook-secret
