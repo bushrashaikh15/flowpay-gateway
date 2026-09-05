@@ -1,0 +1,72 @@
+services:
+
+  postgres:
+    image: postgres:18.4
+    container_name: flowpay-postgres
+
+    environment:
+      POSTGRES_DB: flowpay_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+    ports:
+      - "5433:5432"
+
+    volumes:
+      - flowpay_postgres_data:/var/lib/postgresql
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U postgres -d flowpay_db"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+
+  redis:
+    image: redis:7-alpine
+    container_name: flowpay-redis-docker
+
+    ports:
+      - "6380:6379"
+
+
+  flowpay:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: flowpay-app
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+      redis:
+        condition: service_started
+
+    ports:
+      - "8080:8080"
+
+    environment:
+
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/flowpay_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_SHOW_SQL: "true"
+      SPRING_JPA_OPEN_IN_VIEW: "false"
+
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+
+      FLOWPAY_WEBHOOK_SECRET: ${FLOWPAY_WEBHOOK_SECRET}
+
+
+volumes:
+
+  flowpay_postgres_data:
