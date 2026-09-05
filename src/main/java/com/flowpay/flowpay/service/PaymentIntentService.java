@@ -15,6 +15,8 @@ import com.flowpay.flowpay.exception.PaymentNotFoundException;
 import com.flowpay.flowpay.repository.MerchantRepository;
 import com.flowpay.flowpay.repository.PaymentIntentRepository;
 import com.flowpay.flowpay.repository.TransactionRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +27,9 @@ import java.util.List;
 
 @Service
 public class PaymentIntentService {
+
+    private static final Logger logger =
+            LoggerFactory.getLogger(PaymentIntentService.class);
 
     private final PaymentIntentRepository paymentIntentRepository;
     private final MerchantRepository merchantRepository;
@@ -60,7 +65,18 @@ public class PaymentIntentService {
             PaymentIntentRequest request,
             String idempotencyKey) {
 
+        logger.info(
+                "Creating payment intent for merchant: {} with amount: {} {}",
+                request.getMerchantId(),
+                request.getAmount(),
+                request.getCurrency()
+        );
+
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
+
+            logger.warn(
+                    "Payment intent creation failed: Idempotency-Key is missing"
+            );
 
             throw new RuntimeException(
                     "Idempotency-Key header is required"
@@ -87,12 +103,22 @@ public class PaymentIntentService {
 
         if (Boolean.FALSE.equals(keyCreated)) {
 
+            logger.info(
+                    "Duplicate payment request detected for merchant: {}",
+                    request.getMerchantId()
+            );
+
             String cachedResponse =
                     redisTemplate
                             .opsForValue()
                             .get(redisKey);
 
             if ("PROCESSING".equals(cachedResponse)) {
+
+                logger.warn(
+                        "Payment request is already being processed for merchant: {}",
+                        request.getMerchantId()
+                );
 
                 throw new RuntimeException(
                         "Payment request is already being processed"
@@ -103,12 +129,22 @@ public class PaymentIntentService {
 
                 try {
 
+                    logger.info(
+                            "Returning cached payment response for merchant: {}",
+                            request.getMerchantId()
+                    );
+
                     return objectMapper.readValue(
                             cachedResponse,
                             PaymentIntentResponse.class
                     );
 
                 } catch (JsonProcessingException e) {
+
+                    logger.error(
+                            "Failed to read cached payment response",
+                            e
+                    );
 
                     throw new RuntimeException(
                             "Failed to read cached payment response",
@@ -127,12 +163,18 @@ public class PaymentIntentService {
             Merchant merchant =
                     merchantRepository.findById(
                             request.getMerchantId()
-                    ).orElseThrow(() ->
-                            new MerchantNotFoundException(
-                                    "Merchant not found with id: "
-                                            + request.getMerchantId()
-                            )
-                    );
+                    ).orElseThrow(() -> {
+
+                        logger.warn(
+                                "Merchant not found while creating payment intent: {}",
+                                request.getMerchantId()
+                        );
+
+                        return new MerchantNotFoundException(
+                                "Merchant not found with id: "
+                                        + request.getMerchantId()
+                        );
+                    });
 
             // ====================================================
             // CREATE PAYMENT INTENT
@@ -169,6 +211,11 @@ public class PaymentIntentService {
                     paymentIntentRepository.save(
                             paymentIntent
                     );
+
+            logger.info(
+                    "Payment intent created successfully: {}",
+                    savedPayment.getId()
+            );
 
             // ====================================================
             // CREATE WEBHOOK EVENT
@@ -217,9 +264,19 @@ public class PaymentIntentService {
                     Duration.ofHours(24)
             );
 
+            logger.info(
+                    "Payment intent response cached successfully in Redis: {}",
+                    savedPayment.getId()
+            );
+
             return response;
 
         } catch (MerchantNotFoundException e) {
+
+            logger.warn(
+                    "Payment intent creation failed because merchant was not found: {}",
+                    request.getMerchantId()
+            );
 
             // Allow safe retry if merchant was invalid
             redisTemplate.delete(redisKey);
@@ -227,6 +284,12 @@ public class PaymentIntentService {
             throw e;
 
         } catch (Exception e) {
+
+            logger.error(
+                    "Unexpected error while creating payment intent for merchant: {}",
+                    request.getMerchantId(),
+                    e
+            );
 
             // Allow safe retry if creation failed
             redisTemplate.delete(redisKey);
@@ -244,6 +307,8 @@ public class PaymentIntentService {
 
     public List<PaymentIntentResponse> getAllPaymentIntents() {
 
+        logger.info("Fetching all payment intents");
+
         return paymentIntentRepository.findAll()
                 .stream()
                 .map(this::mapToResponse)
@@ -256,14 +321,25 @@ public class PaymentIntentService {
 
     public PaymentIntentResponse getPaymentIntentById(Long id) {
 
+        logger.info(
+                "Fetching payment intent: {}",
+                id
+        );
+
         PaymentIntent paymentIntent =
                 paymentIntentRepository.findById(id)
-                        .orElseThrow(() ->
-                                new PaymentNotFoundException(
-                                        "Payment intent not found with id: "
-                                                + id
-                                )
-                        );
+                        .orElseThrow(() -> {
+
+                            logger.warn(
+                                    "Payment intent not found: {}",
+                                    id
+                            );
+
+                            return new PaymentNotFoundException(
+                                    "Payment intent not found with id: "
+                                            + id
+                            );
+                        });
 
         return mapToResponse(
                 paymentIntent
@@ -278,14 +354,25 @@ public class PaymentIntentService {
     @Transactional
     public PaymentIntentResponse authorizePaymentIntent(Long id) {
 
+        logger.info(
+                "Authorizing payment intent: {}",
+                id
+        );
+
         PaymentIntent paymentIntent =
                 paymentIntentRepository.findById(id)
-                        .orElseThrow(() ->
-                                new PaymentNotFoundException(
-                                        "Payment intent not found with id: "
-                                                + id
-                                )
-                        );
+                        .orElseThrow(() -> {
+
+                            logger.warn(
+                                    "Payment intent not found during authorization: {}",
+                                    id
+                            );
+
+                            return new PaymentNotFoundException(
+                                    "Payment intent not found with id: "
+                                            + id
+                            );
+                        });
 
         // ========================================================
         // VALIDATE STATE TRANSITION
@@ -293,6 +380,12 @@ public class PaymentIntentService {
 
         if (paymentIntent.getStatus()
                 != PaymentStatus.CREATED) {
+
+            logger.warn(
+                    "Payment {} cannot be authorized from status: {}",
+                    id,
+                    paymentIntent.getStatus()
+            );
 
             throw new RuntimeException(
                     "Payment can only be authorized from CREATED status"
@@ -315,6 +408,11 @@ public class PaymentIntentService {
                 paymentIntentRepository.save(
                         paymentIntent
                 );
+
+        logger.info(
+                "Payment intent authorized successfully: {}",
+                id
+        );
 
         // ========================================================
         // CREATE WEBHOOK EVENT
@@ -348,14 +446,25 @@ public class PaymentIntentService {
     @Transactional
     public PaymentIntentResponse capturePaymentIntent(Long id) {
 
+        logger.info(
+                "Capturing payment intent: {}",
+                id
+        );
+
         PaymentIntent paymentIntent =
                 paymentIntentRepository.findById(id)
-                        .orElseThrow(() ->
-                                new PaymentNotFoundException(
-                                        "Payment intent not found with id: "
-                                                + id
-                                )
-                        );
+                        .orElseThrow(() -> {
+
+                            logger.warn(
+                                    "Payment intent not found during capture: {}",
+                                    id
+                            );
+
+                            return new PaymentNotFoundException(
+                                    "Payment intent not found with id: "
+                                            + id
+                            );
+                        });
 
         // ========================================================
         // VALIDATE STATE TRANSITION
@@ -363,6 +472,12 @@ public class PaymentIntentService {
 
         if (paymentIntent.getStatus()
                 != PaymentStatus.AUTHORIZED) {
+
+            logger.warn(
+                    "Payment {} cannot be captured from status: {}",
+                    id,
+                    paymentIntent.getStatus()
+            );
 
             throw new RuntimeException(
                     "Payment can only be captured from AUTHORIZED status"
@@ -385,6 +500,11 @@ public class PaymentIntentService {
                 paymentIntentRepository.save(
                         paymentIntent
                 );
+
+        logger.info(
+                "Payment intent captured successfully: {}",
+                id
+        );
 
         // ========================================================
         // CREATE PAYMENT TRANSACTION
@@ -421,6 +541,11 @@ public class PaymentIntentService {
                 transaction
         );
 
+        logger.info(
+                "Payment transaction created for payment intent: {}",
+                id
+        );
+
         // ========================================================
         // CREATE WEBHOOK EVENT
         // ========================================================
@@ -453,14 +578,25 @@ public class PaymentIntentService {
     @Transactional
     public PaymentIntentResponse refundPaymentIntent(Long id) {
 
+        logger.info(
+                "Refunding payment intent: {}",
+                id
+        );
+
         PaymentIntent paymentIntent =
                 paymentIntentRepository.findById(id)
-                        .orElseThrow(() ->
-                                new PaymentNotFoundException(
-                                        "Payment intent not found with id: "
-                                                + id
-                                )
-                        );
+                        .orElseThrow(() -> {
+
+                            logger.warn(
+                                    "Payment intent not found during refund: {}",
+                                    id
+                            );
+
+                            return new PaymentNotFoundException(
+                                    "Payment intent not found with id: "
+                                            + id
+                            );
+                        });
 
         // ========================================================
         // VALIDATE STATE TRANSITION
@@ -468,6 +604,12 @@ public class PaymentIntentService {
 
         if (paymentIntent.getStatus()
                 != PaymentStatus.CAPTURED) {
+
+            logger.warn(
+                    "Payment {} cannot be refunded from status: {}",
+                    id,
+                    paymentIntent.getStatus()
+            );
 
             throw new RuntimeException(
                     "Payment can only be refunded from CAPTURED status"
@@ -490,6 +632,11 @@ public class PaymentIntentService {
                 paymentIntentRepository.save(
                         paymentIntent
                 );
+
+        logger.info(
+                "Payment intent refunded successfully: {}",
+                id
+        );
 
         // ========================================================
         // CREATE REFUND TRANSACTION
@@ -524,6 +671,11 @@ public class PaymentIntentService {
 
         transactionRepository.save(
                 refundTransaction
+        );
+
+        logger.info(
+                "Refund transaction created for payment intent: {}",
+                id
         );
 
         // ========================================================
