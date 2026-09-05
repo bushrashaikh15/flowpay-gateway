@@ -4,9 +4,9 @@ import com.flowpay.flowpay.dto.PaymentIntentRequest;
 import com.flowpay.flowpay.dto.PaymentIntentResponse;
 import com.flowpay.flowpay.service.PaymentIntentService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/payment-intents")
@@ -36,13 +36,16 @@ public class PaymentIntentController {
     }
 
     // ============================================================
-    // GET ALL PAYMENT INTENTS
+    // GET ALL PAYMENT INTENTS WITH PAGINATION
     // ============================================================
 
     @GetMapping
-    public List<PaymentIntentResponse> getAllPaymentIntents() {
+    public Page<PaymentIntentResponse> getAllPaymentIntents(
+            Pageable pageable) {
 
-        return paymentIntentService.getAllPaymentIntents();
+        return paymentIntentService.getAllPaymentIntents(
+                pageable
+        );
     }
 
     // ============================================================

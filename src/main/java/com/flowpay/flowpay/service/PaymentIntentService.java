@@ -17,13 +17,14 @@ import com.flowpay.flowpay.repository.PaymentIntentRepository;
 import com.flowpay.flowpay.repository.TransactionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Service
 public class PaymentIntentService {
@@ -302,17 +303,21 @@ public class PaymentIntentService {
     }
 
     // ============================================================
-    // GET ALL PAYMENT INTENTS
+    // GET ALL PAYMENT INTENTS WITH PAGINATION
     // ============================================================
 
-    public List<PaymentIntentResponse> getAllPaymentIntents() {
+    public Page<PaymentIntentResponse> getAllPaymentIntents(
+            Pageable pageable) {
 
-        logger.info("Fetching all payment intents");
+        logger.info(
+                "Fetching payment intents - page: {}, size: {}",
+                pageable.getPageNumber(),
+                pageable.getPageSize()
+        );
 
-        return paymentIntentRepository.findAll()
-                .stream()
-                .map(this::mapToResponse)
-                .toList();
+        return paymentIntentRepository
+                .findAll(pageable)
+                .map(this::mapToResponse);
     }
 
     // ============================================================
