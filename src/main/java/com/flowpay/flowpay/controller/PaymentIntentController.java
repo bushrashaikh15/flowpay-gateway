@@ -2,11 +2,13 @@ package com.flowpay.flowpay.controller;
 
 import com.flowpay.flowpay.dto.PaymentIntentRequest;
 import com.flowpay.flowpay.dto.PaymentIntentResponse;
+import com.flowpay.flowpay.entity.Merchant;
 import com.flowpay.flowpay.enums.PaymentStatus;
 import com.flowpay.flowpay.service.PaymentIntentService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -28,11 +30,16 @@ public class PaymentIntentController {
     @PostMapping
     public PaymentIntentResponse createPaymentIntent(
             @Valid @RequestBody PaymentIntentRequest request,
-            @RequestHeader("Idempotency-Key") String idempotencyKey) {
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            Authentication authentication) {
+
+        Merchant merchant =
+                (Merchant) authentication.getPrincipal();
 
         return paymentIntentService.createPaymentIntent(
                 request,
-                idempotencyKey
+                idempotencyKey,
+                merchant
         );
     }
 
@@ -47,14 +54,19 @@ public class PaymentIntentController {
             @RequestParam(required = false) PaymentStatus status,
             @RequestParam(required = false) String currency,
             @RequestParam(required = false) Double minAmount,
-            @RequestParam(required = false) Double maxAmount) {
+            @RequestParam(required = false) Double maxAmount,
+            Authentication authentication) {
+
+        Merchant merchant =
+                (Merchant) authentication.getPrincipal();
 
         return paymentIntentService.getAllPaymentIntents(
                 pageable,
                 status,
                 currency,
                 minAmount,
-                maxAmount
+                maxAmount,
+                merchant
         );
     }
 
@@ -64,9 +76,16 @@ public class PaymentIntentController {
 
     @GetMapping("/{id}")
     public PaymentIntentResponse getPaymentIntentById(
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            Authentication authentication) {
 
-        return paymentIntentService.getPaymentIntentById(id);
+        Merchant merchant =
+                (Merchant) authentication.getPrincipal();
+
+        return paymentIntentService.getPaymentIntentById(
+                id,
+                merchant
+        );
     }
 
     // ============================================================
@@ -75,9 +94,16 @@ public class PaymentIntentController {
 
     @PutMapping("/{id}/authorize")
     public PaymentIntentResponse authorizePaymentIntent(
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            Authentication authentication) {
 
-        return paymentIntentService.authorizePaymentIntent(id);
+        Merchant merchant =
+                (Merchant) authentication.getPrincipal();
+
+        return paymentIntentService.authorizePaymentIntent(
+                id,
+                merchant
+        );
     }
 
     // ============================================================
@@ -86,9 +112,16 @@ public class PaymentIntentController {
 
     @PutMapping("/{id}/capture")
     public PaymentIntentResponse capturePaymentIntent(
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            Authentication authentication) {
 
-        return paymentIntentService.capturePaymentIntent(id);
+        Merchant merchant =
+                (Merchant) authentication.getPrincipal();
+
+        return paymentIntentService.capturePaymentIntent(
+                id,
+                merchant
+        );
     }
 
     // ============================================================
@@ -97,8 +130,15 @@ public class PaymentIntentController {
 
     @PutMapping("/{id}/refund")
     public PaymentIntentResponse refundPaymentIntent(
-            @PathVariable Long id) {
+            @PathVariable Long id,
+            Authentication authentication) {
 
-        return paymentIntentService.refundPaymentIntent(id);
+        Merchant merchant =
+                (Merchant) authentication.getPrincipal();
+
+        return paymentIntentService.refundPaymentIntent(
+                id,
+                merchant
+        );
     }
 }

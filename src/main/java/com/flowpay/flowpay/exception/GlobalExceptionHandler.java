@@ -5,6 +5,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -16,6 +18,22 @@ public class GlobalExceptionHandler {
     // ============================================================
     // VALIDATION EXCEPTION
     // ============================================================
+    @ExceptionHandler(UnauthorizedResourceException.class)
+    public ResponseEntity<Map<String, Object>> handleUnauthorizedResource(
+            UnauthorizedResourceException ex) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        response.put("timestamp", LocalDateTime.now());
+        response.put("status", 403);
+        response.put("error", "Forbidden");
+        response.put("message", ex.getMessage());
+
+        return new ResponseEntity<>(
+                response,
+                HttpStatus.FORBIDDEN
+        );
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, String>> handleValidationExceptions(

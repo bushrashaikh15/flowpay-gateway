@@ -1,7 +1,9 @@
 package com.flowpay.flowpay.controller;
 
 import com.flowpay.flowpay.entity.AuditLog;
+import com.flowpay.flowpay.entity.Merchant;
 import com.flowpay.flowpay.service.AuditLogService;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,9 +25,15 @@ public class AuditLogController {
     // ============================================================
 
     @GetMapping
-    public List<AuditLog> getAllAuditLogs() {
+    public List<AuditLog> getAllAuditLogs(
+            Authentication authentication) {
 
-        return auditLogService.getAllAuditLogs();
+        Merchant merchant =
+                (Merchant) authentication.getPrincipal();
+
+        return auditLogService.getAllAuditLogs(
+                merchant
+        );
     }
 
     // ============================================================
@@ -34,11 +42,16 @@ public class AuditLogController {
 
     @GetMapping("/payment/{paymentIntentId}")
     public List<AuditLog> getAuditLogsByPaymentIntentId(
-            @PathVariable Long paymentIntentId) {
+            @PathVariable Long paymentIntentId,
+            Authentication authentication) {
+
+        Merchant merchant =
+                (Merchant) authentication.getPrincipal();
 
         return auditLogService
                 .getAuditLogsByPaymentIntentId(
-                        paymentIntentId
+                        paymentIntentId,
+                        merchant
                 );
     }
 }

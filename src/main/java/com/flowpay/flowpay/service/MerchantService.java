@@ -6,6 +6,8 @@ import com.flowpay.flowpay.entity.Merchant;
 import com.flowpay.flowpay.repository.MerchantRepository;
 import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -14,24 +16,52 @@ public class MerchantService {
 
     private final MerchantRepository merchantRepository;
 
-    public MerchantService(MerchantRepository merchantRepository) {
+    private final SecureRandom secureRandom =
+            new SecureRandom();
+
+    public MerchantService(
+            MerchantRepository merchantRepository) {
+
         this.merchantRepository = merchantRepository;
     }
 
     // Create Merchant
-    public MerchantResponse createMerchant(MerchantRequest request) {
+    public MerchantResponse createMerchant(
+            MerchantRequest request) {
 
         Merchant merchant = new Merchant();
 
-        merchant.setMerchantName(request.getMerchantName());
-        merchant.setEmail(request.getEmail());
+        merchant.setMerchantName(
+                request.getMerchantName()
+        );
 
-        merchant.setApiKey("API_" + System.currentTimeMillis());
+        merchant.setEmail(
+                request.getEmail()
+        );
+
+        merchant.setApiKey(
+                generateApiKey()
+        );
+
         merchant.setActive(true);
 
-        Merchant savedMerchant = merchantRepository.save(merchant);
+        Merchant savedMerchant =
+                merchantRepository.save(merchant);
 
         return convertToResponse(savedMerchant);
+    }
+
+    // Generate secure API key
+    private String generateApiKey() {
+
+        byte[] randomBytes = new byte[32];
+
+        secureRandom.nextBytes(randomBytes);
+
+        return "fp_live_" +
+                Base64.getUrlEncoder()
+                        .withoutPadding()
+                        .encodeToString(randomBytes);
     }
 
     // Get All Merchants
@@ -44,24 +74,43 @@ public class MerchantService {
     }
 
     // Get Merchant By ID
-    public MerchantResponse getMerchantById(Long id) {
+    public MerchantResponse getMerchantById(
+            Long id) {
 
-        Merchant merchant = merchantRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Merchant not found"));
+        Merchant merchant =
+                merchantRepository.findById(id)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Merchant not found"
+                                )
+                        );
 
         return convertToResponse(merchant);
     }
 
     // Update Merchant
-    public MerchantResponse updateMerchant(Long id, MerchantRequest request) {
+    public MerchantResponse updateMerchant(
+            Long id,
+            MerchantRequest request) {
 
-        Merchant merchant = merchantRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Merchant not found"));
+        Merchant merchant =
+                merchantRepository.findById(id)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Merchant not found"
+                                )
+                        );
 
-        merchant.setMerchantName(request.getMerchantName());
-        merchant.setEmail(request.getEmail());
+        merchant.setMerchantName(
+                request.getMerchantName()
+        );
 
-        Merchant updatedMerchant = merchantRepository.save(merchant);
+        merchant.setEmail(
+                request.getEmail()
+        );
+
+        Merchant updatedMerchant =
+                merchantRepository.save(merchant);
 
         return convertToResponse(updatedMerchant);
     }
@@ -69,21 +118,43 @@ public class MerchantService {
     // Delete Merchant
     public void deleteMerchant(Long id) {
 
-        Merchant merchant = merchantRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Merchant not found"));
+        Merchant merchant =
+                merchantRepository.findById(id)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Merchant not found"
+                                )
+                        );
 
         merchantRepository.delete(merchant);
     }
 
     // Convert Entity -> Response DTO
-    private MerchantResponse convertToResponse(Merchant merchant) {
+    private MerchantResponse convertToResponse(
+            Merchant merchant) {
 
-        MerchantResponse response = new MerchantResponse();
+        MerchantResponse response =
+                new MerchantResponse();
 
-        response.setId(merchant.getId());
-        response.setMerchantName(merchant.getMerchantName());
-        response.setEmail(merchant.getEmail());
-        response.setActive(merchant.isActive());
+        response.setId(
+                merchant.getId()
+        );
+
+        response.setMerchantName(
+                merchant.getMerchantName()
+        );
+
+        response.setEmail(
+                merchant.getEmail()
+        );
+
+        response.setApiKey(
+                merchant.getApiKey()
+        );
+
+        response.setActive(
+                merchant.isActive()
+        );
 
         return response;
     }

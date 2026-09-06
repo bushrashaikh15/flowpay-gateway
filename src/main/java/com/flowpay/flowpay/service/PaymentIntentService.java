@@ -12,6 +12,7 @@ import com.flowpay.flowpay.enums.PaymentStatus;
 import com.flowpay.flowpay.enums.TransactionType;
 import com.flowpay.flowpay.exception.MerchantNotFoundException;
 import com.flowpay.flowpay.exception.PaymentNotFoundException;
+import com.flowpay.flowpay.exception.UnauthorizedResourceException;
 import com.flowpay.flowpay.repository.MerchantRepository;
 import com.flowpay.flowpay.repository.PaymentIntentRepository;
 import com.flowpay.flowpay.repository.TransactionRepository;
@@ -66,14 +67,33 @@ public class PaymentIntentService {
 
     public PaymentIntentResponse createPaymentIntent(
             PaymentIntentRequest request,
-            String idempotencyKey) {
+            String idempotencyKey,
+            Merchant authenticatedMerchant) {
 
         logger.info(
                 "Creating payment intent for merchant: {} with amount: {} {}",
-                request.getMerchantId(),
+                authenticatedMerchant.getId(),
                 request.getAmount(),
                 request.getCurrency()
         );
+
+        // ========================================================
+        // VERIFY MERCHANT OWNERSHIP
+        // ========================================================
+
+        if (!authenticatedMerchant.getId()
+                .equals(request.getMerchantId())) {
+
+            logger.warn(
+                    "Merchant {} attempted to create payment for merchant {}",
+                    authenticatedMerchant.getId(),
+                    request.getMerchantId()
+            );
+
+            throw new RuntimeException(
+                    "You can only create payment intents for your own merchant account"
+            );
+        }
 
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
 
@@ -88,7 +108,7 @@ public class PaymentIntentService {
 
         String redisKey =
                 "idempotency:"
-                        + request.getMerchantId()
+                        + authenticatedMerchant.getId()
                         + ":"
                         + idempotencyKey;
 
@@ -108,7 +128,7 @@ public class PaymentIntentService {
 
             logger.info(
                     "Duplicate payment request detected for merchant: {}",
-                    request.getMerchantId()
+                    authenticatedMerchant.getId()
             );
 
             String cachedResponse =
@@ -120,7 +140,7 @@ public class PaymentIntentService {
 
                 logger.warn(
                         "Payment request is already being processed for merchant: {}",
-                        request.getMerchantId()
+                        authenticatedMerchant.getId()
                 );
 
                 throw new RuntimeException(
@@ -134,7 +154,7 @@ public class PaymentIntentService {
 
                     logger.info(
                             "Returning cached payment response for merchant: {}",
-                            request.getMerchantId()
+                            authenticatedMerchant.getId()
                     );
 
                     return objectMapper.readValue(
@@ -160,22 +180,22 @@ public class PaymentIntentService {
         try {
 
             // ====================================================
-            // FIND MERCHANT
+            // FIND AUTHENTICATED MERCHANT
             // ====================================================
 
             Merchant merchant =
                     merchantRepository.findById(
-                            request.getMerchantId()
+                            authenticatedMerchant.getId()
                     ).orElseThrow(() -> {
 
                         logger.warn(
-                                "Merchant not found while creating payment intent: {}",
-                                request.getMerchantId()
+                                "Authenticated merchant not found: {}",
+                                authenticatedMerchant.getId()
                         );
 
                         return new MerchantNotFoundException(
                                 "Merchant not found with id: "
-                                        + request.getMerchantId()
+                                        + authenticatedMerchant.getId()
                         );
                     });
 
@@ -216,8 +236,9 @@ public class PaymentIntentService {
                     );
 
             logger.info(
-                    "Payment intent created successfully: {}",
-                    savedPayment.getId()
+                    "Payment intent created successfully: {} for merchant: {}",
+                    savedPayment.getId(),
+                    merchant.getId()
             );
 
             // ====================================================
@@ -278,10 +299,9 @@ public class PaymentIntentService {
 
             logger.warn(
                     "Payment intent creation failed because merchant was not found: {}",
-                    request.getMerchantId()
+                    authenticatedMerchant.getId()
             );
 
-            // Allow safe retry if merchant was invalid
             redisTemplate.delete(redisKey);
 
             throw e;
@@ -290,11 +310,10 @@ public class PaymentIntentService {
 
             logger.error(
                     "Unexpected error while creating payment intent for merchant: {}",
-                    request.getMerchantId(),
+                    authenticatedMerchant.getId(),
                     e
             );
 
-            // Allow safe retry if creation failed
             redisTemplate.delete(redisKey);
 
             throw new RuntimeException(
@@ -305,7 +324,8 @@ public class PaymentIntentService {
     }
 
     // ============================================================
-    // GET ALL PAYMENT INTENTS WITH FILTERING + PAGINATION
+    // GET ALL PAYMENT INTENTS
+    // WITH FILTERING + PAGINATION + OWNERSHIP
     // ============================================================
 
     public Page<PaymentIntentResponse> getAllPaymentIntents(
@@ -313,10 +333,12 @@ public class PaymentIntentService {
             PaymentStatus status,
             String currency,
             Double minAmount,
-            Double maxAmount) {
+            Double maxAmount,
+            Merchant authenticatedMerchant) {
 
         logger.info(
-                "Fetching payment intents - page: {}, size: {}, status: {}, currency: {}, minAmount: {}, maxAmount: {}",
+                "Fetching payment intents for merchant: {} - page: {}, size: {}, status: {}, currency: {}, minAmount: {}, maxAmount: {}",
+                authenticatedMerchant.getId(),
                 pageable.getPageNumber(),
                 pageable.getPageSize(),
                 status,
@@ -325,15 +347,20 @@ public class PaymentIntentService {
                 maxAmount
         );
 
-        // ========================================================
-        // CREATE EMPTY SPECIFICATION
-        // ========================================================
-        // Do NOT use Specification.where(null)
-        // because Spring Boot 4 / Spring Data JPA has
-        // multiple overloaded where() methods.
-
         Specification<PaymentIntent> specification =
                 (root, query, criteriaBuilder) -> null;
+
+        // ========================================================
+        // MERCHANT OWNERSHIP FILTER
+        // ========================================================
+
+        specification = specification.and(
+                (root, query, criteriaBuilder) ->
+                        criteriaBuilder.equal(
+                                root.get("merchant").get("id"),
+                                authenticatedMerchant.getId()
+                        )
+        );
 
         // ========================================================
         // STATUS FILTER
@@ -399,27 +426,21 @@ public class PaymentIntentService {
     // GET PAYMENT INTENT BY ID
     // ============================================================
 
-    public PaymentIntentResponse getPaymentIntentById(Long id) {
+    public PaymentIntentResponse getPaymentIntentById(
+            Long id,
+            Merchant authenticatedMerchant) {
 
         logger.info(
-                "Fetching payment intent: {}",
-                id
+                "Fetching payment intent: {} for merchant: {}",
+                id,
+                authenticatedMerchant.getId()
         );
 
         PaymentIntent paymentIntent =
-                paymentIntentRepository.findById(id)
-                        .orElseThrow(() -> {
-
-                            logger.warn(
-                                    "Payment intent not found: {}",
-                                    id
-                            );
-
-                            return new PaymentNotFoundException(
-                                    "Payment intent not found with id: "
-                                            + id
-                            );
-                        });
+                findOwnedPaymentIntent(
+                        id,
+                        authenticatedMerchant
+                );
 
         return mapToResponse(
                 paymentIntent
@@ -427,32 +448,26 @@ public class PaymentIntentService {
     }
 
     // ============================================================
-    // AUTHORIZE PAYMENT INTENT
+    // AUTHORIZE
     // CREATED → AUTHORIZED
     // ============================================================
 
     @Transactional
-    public PaymentIntentResponse authorizePaymentIntent(Long id) {
+    public PaymentIntentResponse authorizePaymentIntent(
+            Long id,
+            Merchant authenticatedMerchant) {
 
         logger.info(
-                "Authorizing payment intent: {}",
-                id
+                "Authorizing payment intent: {} for merchant: {}",
+                id,
+                authenticatedMerchant.getId()
         );
 
         PaymentIntent paymentIntent =
-                paymentIntentRepository.findById(id)
-                        .orElseThrow(() -> {
-
-                            logger.warn(
-                                    "Payment intent not found during authorization: {}",
-                                    id
-                            );
-
-                            return new PaymentNotFoundException(
-                                    "Payment intent not found with id: "
-                                            + id
-                            );
-                        });
+                findOwnedPaymentIntent(
+                        id,
+                        authenticatedMerchant
+                );
 
         // ========================================================
         // VALIDATE STATE TRANSITION
@@ -519,32 +534,26 @@ public class PaymentIntentService {
     }
 
     // ============================================================
-    // CAPTURE PAYMENT INTENT
+    // CAPTURE
     // AUTHORIZED → CAPTURED
     // ============================================================
 
     @Transactional
-    public PaymentIntentResponse capturePaymentIntent(Long id) {
+    public PaymentIntentResponse capturePaymentIntent(
+            Long id,
+            Merchant authenticatedMerchant) {
 
         logger.info(
-                "Capturing payment intent: {}",
-                id
+                "Capturing payment intent: {} for merchant: {}",
+                id,
+                authenticatedMerchant.getId()
         );
 
         PaymentIntent paymentIntent =
-                paymentIntentRepository.findById(id)
-                        .orElseThrow(() -> {
-
-                            logger.warn(
-                                    "Payment intent not found during capture: {}",
-                                    id
-                            );
-
-                            return new PaymentNotFoundException(
-                                    "Payment intent not found with id: "
-                                            + id
-                            );
-                        });
+                findOwnedPaymentIntent(
+                        id,
+                        authenticatedMerchant
+                );
 
         // ========================================================
         // VALIDATE STATE TRANSITION
@@ -651,32 +660,26 @@ public class PaymentIntentService {
     }
 
     // ============================================================
-    // REFUND PAYMENT INTENT
+    // REFUND
     // CAPTURED → REFUNDED
     // ============================================================
 
     @Transactional
-    public PaymentIntentResponse refundPaymentIntent(Long id) {
+    public PaymentIntentResponse refundPaymentIntent(
+            Long id,
+            Merchant authenticatedMerchant) {
 
         logger.info(
-                "Refunding payment intent: {}",
-                id
+                "Refunding payment intent: {} for merchant: {}",
+                id,
+                authenticatedMerchant.getId()
         );
 
         PaymentIntent paymentIntent =
-                paymentIntentRepository.findById(id)
-                        .orElseThrow(() -> {
-
-                            logger.warn(
-                                    "Payment intent not found during refund: {}",
-                                    id
-                            );
-
-                            return new PaymentNotFoundException(
-                                    "Payment intent not found with id: "
-                                            + id
-                            );
-                        });
+                findOwnedPaymentIntent(
+                        id,
+                        authenticatedMerchant
+                );
 
         // ========================================================
         // VALIDATE STATE TRANSITION
@@ -780,6 +783,53 @@ public class PaymentIntentService {
         return mapToResponse(
                 savedPayment
         );
+    }
+
+    // ============================================================
+    // FIND PAYMENT OWNED BY AUTHENTICATED MERCHANT
+    // ============================================================
+
+    private PaymentIntent findOwnedPaymentIntent(
+            Long id,
+            Merchant authenticatedMerchant) {
+
+        PaymentIntent paymentIntent =
+                paymentIntentRepository.findById(id)
+                        .orElseThrow(() -> {
+
+                            logger.warn(
+                                    "Payment intent not found: {}",
+                                    id
+                            );
+
+                            return new PaymentNotFoundException(
+                                    "Payment intent not found with id: "
+                                            + id
+                            );
+                        });
+
+        // ========================================================
+        // OWNERSHIP CHECK
+        // ========================================================
+
+        if (paymentIntent.getMerchant() == null ||
+                !paymentIntent
+                        .getMerchant()
+                        .getId()
+                        .equals(authenticatedMerchant.getId())) {
+
+            logger.warn(
+                    "Merchant {} attempted to access payment intent {} owned by another merchant",
+                    authenticatedMerchant.getId(),
+                    id
+            );
+
+            throw new UnauthorizedResourceException(
+                    "You are not authorized to access this payment intent"
+            );
+        }
+
+        return paymentIntent;
     }
 
     // ============================================================

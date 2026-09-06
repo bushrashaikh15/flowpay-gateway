@@ -1,31 +1,24 @@
 package com.flowpay.flowpay.dto;
 
-public class MerchantResponse {
+public class MerchantPublicResponse {
 
     private Long id;
-
     private String merchantName;
-
     private String email;
-
-    private String apiKey;
-
     private boolean active;
 
-    public MerchantResponse() {
+    public MerchantPublicResponse() {
     }
 
-    public MerchantResponse(
+    public MerchantPublicResponse(
             Long id,
             String merchantName,
             String email,
-            String apiKey,
             boolean active) {
 
         this.id = id;
         this.merchantName = merchantName;
         this.email = email;
-        this.apiKey = apiKey;
         this.active = active;
     }
 
@@ -51,14 +44,6 @@ public class MerchantResponse {
 
     public void setEmail(String email) {
         this.email = email;
-    }
-
-    public String getApiKey() {
-        return apiKey;
-    }
-
-    public void setApiKey(String apiKey) {
-        this.apiKey = apiKey;
     }
 
     public boolean isActive() {

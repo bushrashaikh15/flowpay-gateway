@@ -1,7 +1,9 @@
 package com.flowpay.flowpay.service;
 
 import com.flowpay.flowpay.dto.TransactionResponse;
+import com.flowpay.flowpay.entity.Merchant;
 import com.flowpay.flowpay.entity.Transaction;
+import com.flowpay.flowpay.exception.UnauthorizedResourceException;
 import com.flowpay.flowpay.repository.TransactionRepository;
 import org.springframework.stereotype.Service;
 
@@ -22,10 +24,22 @@ public class TransactionService {
     // GET ALL TRANSACTIONS
     // ============================================================
 
-    public List<TransactionResponse> getAllTransactions() {
+    public List<TransactionResponse> getAllTransactions(
+            Merchant authenticatedMerchant) {
 
         return transactionRepository.findAll()
                 .stream()
+                .filter(transaction ->
+                        transaction.getPaymentIntent() != null
+                                && transaction.getPaymentIntent()
+                                .getMerchant() != null
+                                && transaction.getPaymentIntent()
+                                .getMerchant()
+                                .getId()
+                                .equals(
+                                        authenticatedMerchant.getId()
+                                )
+                )
                 .map(this::mapToResponse)
                 .toList();
     }
@@ -34,11 +48,39 @@ public class TransactionService {
     // GET TRANSACTIONS BY PAYMENT INTENT ID
     // ============================================================
 
-    public List<TransactionResponse> getTransactionsByPaymentIntentId(
-            Long paymentIntentId) {
+    public List<TransactionResponse>
+    getTransactionsByPaymentIntentId(
+            Long paymentIntentId,
+            Merchant authenticatedMerchant) {
 
-        return transactionRepository
-                .findByPaymentIntentId(paymentIntentId)
+        List<Transaction> transactions =
+                transactionRepository
+                        .findByPaymentIntentId(
+                                paymentIntentId
+                        );
+
+        if (!transactions.isEmpty()) {
+
+            Transaction transaction =
+                    transactions.get(0);
+
+            if (transaction.getPaymentIntent() == null
+                    || transaction.getPaymentIntent().getMerchant() == null
+                    || !transaction
+                    .getPaymentIntent()
+                    .getMerchant()
+                    .getId()
+                    .equals(
+                            authenticatedMerchant.getId()
+                    )) {
+
+                throw new UnauthorizedResourceException(
+                        "You are not authorized to access these transactions"
+                );
+            }
+        }
+
+        return transactions
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
@@ -54,7 +96,9 @@ public class TransactionService {
         TransactionResponse response =
                 new TransactionResponse();
 
-        response.setId(transaction.getId());
+        response.setId(
+                transaction.getId()
+        );
 
         response.setAmount(
                 transaction.getAmount()
