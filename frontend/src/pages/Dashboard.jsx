@@ -1,12 +1,18 @@
+import { useNavigate } from "react-router-dom";
+
 function Dashboard() {
 
     const apiKey =
         localStorage.getItem("flowpay_api_key");
 
+    const navigate = useNavigate();
+
     return (
         <div className="container-fluid">
 
             <div className="row">
+
+                {/* SIDEBAR */}
 
                 <div className="col-md-2 bg-dark text-white min-vh-100 p-4">
 
@@ -14,23 +20,42 @@ function Dashboard() {
                         FlowPay
                     </h3>
 
-                    <div className="mb-3">
+                    <div
+                        className="mb-3"
+                        style={{ cursor: "pointer" }}
+                        onClick={() => navigate("/dashboard")}
+                    >
                         Dashboard
                     </div>
 
-                    <div className="mb-3">
+                    <div
+                        className="mb-3"
+                        style={{ cursor: "pointer" }}
+                        onClick={() => navigate("/payment-intents")}
+                    >
                         Payments
                     </div>
 
-                    <div className="mb-3">
+                    <div
+                        className="mb-3"
+                        style={{ cursor: "pointer" }}
+                        onClick={() => navigate("/transactions")}
+                    >
                         Transactions
                     </div>
 
-                    <div className="mb-3">
+                    <div
+                        className="mb-3"
+                        style={{ cursor: "pointer" }}
+                        onClick={() => navigate("/audit-logs")}
+                    >
                         Audit Logs
                     </div>
 
                 </div>
+
+
+                {/* MAIN CONTENT */}
 
                 <div className="col-md-10 p-4">
 
@@ -38,11 +63,17 @@ function Dashboard() {
                         Dashboard
                     </h2>
 
+
+                    {/* DASHBOARD CARDS */}
+
                     <div className="row">
+
+
+                        {/* PAYMENT INTENTS */}
 
                         <div className="col-md-4 mb-4">
 
-                            <div className="card shadow-sm">
+                            <div className="card shadow-sm h-100">
 
                                 <div className="card-body">
 
@@ -54,15 +85,29 @@ function Dashboard() {
                                         Manage your payment intents.
                                     </p>
 
+                                    <button
+                                        className="btn btn-dark"
+                                        onClick={() =>
+                                            navigate(
+                                                "/payment-intents"
+                                            )
+                                        }
+                                    >
+                                        View Payment Intents
+                                    </button>
+
                                 </div>
 
                             </div>
 
                         </div>
 
+
+                        {/* TRANSACTIONS */}
+
                         <div className="col-md-4 mb-4">
 
-                            <div className="card shadow-sm">
+                            <div className="card shadow-sm h-100">
 
                                 <div className="card-body">
 
@@ -74,15 +119,25 @@ function Dashboard() {
                                         View your transaction history.
                                     </p>
 
+                                    <button
+                                        className="btn btn-outline-dark"
+                                        onClick={() => navigate("/transactions")}
+                                    >
+                                        View Transactions
+                                    </button>
+
                                 </div>
 
                             </div>
 
                         </div>
 
+
+                        {/* AUDIT LOGS */}
+
                         <div className="col-md-4 mb-4">
 
-                            <div className="card shadow-sm">
+                            <div className="card shadow-sm h-100">
 
                                 <div className="card-body">
 
@@ -94,6 +149,13 @@ function Dashboard() {
                                         Monitor payment activity.
                                     </p>
 
+                                    <button
+                                        className="btn btn-outline-dark"
+                                        onClick={() => navigate("/audit-logs")}
+                                    >
+                                        View Audit Logs
+                                    </button>
+
                                 </div>
 
                             </div>
@@ -101,6 +163,9 @@ function Dashboard() {
                         </div>
 
                     </div>
+
+
+                    {/* AUTHENTICATION STATUS */}
 
                     <div className="card shadow-sm mt-3">
 
@@ -111,9 +176,11 @@ function Dashboard() {
                             </h5>
 
                             <p className="text-success mb-0">
+
                                 {apiKey
                                     ? "API key stored successfully"
                                     : "No API key found"}
+
                             </p>
 
                         </div>
