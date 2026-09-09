@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../services/api";
+import Sidebar from "../components/Sidebar";
 
 function Transactions() {
+
+    const navigate = useNavigate();
 
     const [transactions, setTransactions] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -28,10 +32,15 @@ function Transactions() {
             console.error(error);
 
             if (error.response?.status === 401) {
+
+                localStorage.removeItem("flowpay_api_key");
+
                 setError(
                     "Session expired or API key is invalid."
                 );
+
             } else {
+
                 setError(
                     "Unable to load transactions."
                 );
@@ -40,7 +49,6 @@ function Transactions() {
         } finally {
 
             setLoading(false);
-
         }
     }
 
@@ -57,12 +65,6 @@ function Transactions() {
 
         switch (status) {
 
-            case "CREATED":
-                return "badge bg-secondary";
-
-            case "AUTHORIZED":
-                return "badge bg-warning text-dark";
-
             case "CAPTURED":
                 return "badge bg-success";
 
@@ -71,6 +73,9 @@ function Transactions() {
 
             case "FAILED":
                 return "badge bg-danger";
+
+            case "PENDING":
+                return "badge bg-warning text-dark";
 
             default:
                 return "badge bg-secondary";
@@ -84,12 +89,6 @@ function Transactions() {
             case "PAYMENT":
                 return "badge bg-primary";
 
-            case "AUTHORIZATION":
-                return "badge bg-warning text-dark";
-
-            case "CAPTURE":
-                return "badge bg-success";
-
             case "REFUND":
                 return "badge bg-info text-dark";
 
@@ -99,230 +98,278 @@ function Transactions() {
     }
 
     return (
-        <div className="container-fluid p-4">
 
-            {/* HEADER */}
+        <div className="container-fluid p-0">
 
-            <div className="d-flex justify-content-between align-items-center mb-4">
+            <div className="row g-0">
 
-                <div>
+                {/* SIDEBAR */}
 
-                    <h2 className="fw-bold mb-1">
-                        Transactions
-                    </h2>
+                <Sidebar />
 
-                    <p className="text-muted mb-0">
-                        View your payment transaction history
-                    </p>
+                {/* MAIN CONTENT */}
 
-                </div>
+                <div className="col-md-10">
 
-                <button
-                    className="btn btn-outline-dark"
-                    onClick={fetchTransactions}
-                    disabled={loading}
-                >
-                    ↻ Refresh
-                </button>
+                    <div className="p-4">
 
-            </div>
+                        {/* PAGE HEADER */}
 
+                        <div className="d-flex justify-content-between align-items-center mb-4">
 
-            {/* ERROR */}
+                            <div>
 
-            {error && (
+                                <h2 className="fw-bold mb-1">
+                                    Transactions
+                                </h2>
 
-                <div className="alert alert-danger">
-                    {error}
-                </div>
+                                <p className="text-muted mb-0">
+                                    View your payment transaction history
+                                </p>
 
-            )}
+                            </div>
 
-
-            {/* TRANSACTION CARD */}
-
-            <div className="card shadow-sm">
-
-                <div className="card-body">
-
-                    <div className="d-flex justify-content-between align-items-center mb-3">
-
-                        <h5 className="mb-0">
-                            Transaction History
-                        </h5>
-
-                        <span className="text-muted">
-                            Total: {transactions.length}
-                        </span>
-
-                    </div>
-
-
-                    {/* LOADING */}
-
-                    {loading ? (
-
-                        <div className="text-center py-5">
-
-                            <div
-                                className="spinner-border"
-                                role="status"
-                            />
-
-                            <p className="mt-2 text-muted">
-                                Loading transactions...
-                            </p>
+                            <button
+                                className="btn btn-outline-dark"
+                                onClick={fetchTransactions}
+                                disabled={loading}
+                            >
+                                ↻ Refresh
+                            </button>
 
                         </div>
 
-                    ) : transactions.length === 0 ? (
 
-                        /* EMPTY */
+                        {/* ERROR */}
 
-                        <div className="text-center py-5">
+                        {error && (
 
-                            <h5>
-                                No Transactions Found
-                            </h5>
+                            <div className="alert alert-danger">
 
-                            <p className="text-muted">
-                                Transactions will appear here
-                                when you create and process payments.
-                            </p>
+                                {error}
 
-                        </div>
+                            </div>
 
-                    ) : (
+                        )}
 
-                        /* TABLE */
 
-                        <div className="table-responsive">
+                        {/* TRANSACTION CARD */}
 
-                            <table className="table table-hover align-middle">
+                        <div className="card shadow-sm">
 
-                                <thead className="table-light">
+                            <div className="card-body">
 
-                                <tr>
+                                <div className="d-flex justify-content-between align-items-center mb-3">
 
-                                    <th>ID</th>
+                                    <h5 className="mb-0">
+                                        Transaction History
+                                    </h5>
 
-                                    <th>
-                                        Payment Intent
-                                    </th>
+                                    <span className="text-muted">
+                                        Total: {transactions.length}
+                                    </span>
 
-                                    <th>
-                                        Amount
-                                    </th>
+                                </div>
 
-                                    <th>
-                                        Currency
-                                    </th>
 
-                                    <th>
-                                        Type
-                                    </th>
+                                {/* LOADING */}
 
-                                    <th>
-                                        Status
-                                    </th>
+                                {loading ? (
 
-                                    <th>
-                                        Created At
-                                    </th>
+                                    <div className="text-center py-5">
 
-                                </tr>
+                                        <div
+                                            className="spinner-border"
+                                            role="status"
+                                        />
 
-                                </thead>
+                                        <p className="mt-2 text-muted">
+                                            Loading transactions...
+                                        </p>
 
-                                <tbody>
+                                    </div>
 
-                                {transactions.map(
-                                    (transaction) => (
+                                ) : transactions.length === 0 ? (
 
-                                        <tr
-                                            key={
-                                                transaction.id
+                                    /* EMPTY STATE */
+
+                                    <div className="text-center py-5">
+
+                                        <h5>
+                                            No Transactions Found
+                                        </h5>
+
+                                        <p className="text-muted">
+                                            Transactions will appear here after
+                                            payments are captured or refunded.
+                                        </p>
+
+                                        <button
+                                            className="btn btn-dark"
+                                            onClick={() =>
+                                                navigate(
+                                                    "/payment-intents"
+                                                )
                                             }
                                         >
+                                            View Payment Intents
+                                        </button>
 
-                                            <td className="fw-semibold">
-                                                #
-                                                {
-                                                    transaction.id
-                                                }
-                                            </td>
+                                    </div>
 
-                                            <td>
-                                                #
-                                                {
-                                                    transaction.paymentIntentId
-                                                }
-                                            </td>
+                                ) : (
 
-                                            <td className="fw-semibold">
-                                                {
-                                                    transaction.amount
-                                                }
-                                            </td>
+                                    /* TABLE */
 
-                                            <td>
-                                                {
-                                                    transaction.currency
-                                                }
-                                            </td>
+                                    <div className="table-responsive">
 
-                                            <td>
+                                        <table className="table table-hover align-middle">
 
-                                                    <span
-                                                        className={
-                                                            getTypeClass(
-                                                                transaction.type
-                                                            )
+                                            <thead className="table-light">
+
+                                            <tr>
+
+                                                <th>
+                                                    ID
+                                                </th>
+
+                                                <th>
+                                                    Payment Intent
+                                                </th>
+
+                                                <th>
+                                                    Amount
+                                                </th>
+
+                                                <th>
+                                                    Currency
+                                                </th>
+
+                                                <th>
+                                                    Type
+                                                </th>
+
+                                                <th>
+                                                    Status
+                                                </th>
+
+                                                <th>
+                                                    Created At
+                                                </th>
+
+                                            </tr>
+
+                                            </thead>
+
+                                            <tbody>
+
+                                            {transactions.map(
+                                                (transaction) => (
+
+                                                    <tr
+                                                        key={
+                                                            transaction.id
                                                         }
                                                     >
-                                                        {
-                                                            transaction.type
-                                                        }
-                                                    </span>
 
-                                            </td>
+                                                        <td className="fw-semibold">
 
-                                            <td>
+                                                            #
+                                                            {
+                                                                transaction.id
+                                                            }
 
-                                                    <span
-                                                        className={
-                                                            getStatusClass(
-                                                                transaction.status
-                                                            )
-                                                        }
-                                                    >
-                                                        {
-                                                            transaction.status
-                                                        }
-                                                    </span>
+                                                        </td>
 
-                                            </td>
+                                                        <td>
 
-                                            <td>
-                                                {
-                                                    formatDate(
-                                                        transaction.createdAt
-                                                    )
-                                                }
-                                            </td>
+                                                            #
+                                                            {
+                                                                transaction.paymentIntentId
+                                                            }
 
-                                        </tr>
+                                                        </td>
 
-                                    )
+                                                        <td className="fw-semibold">
+
+                                                            {
+                                                                transaction.amount
+                                                            }
+
+                                                        </td>
+
+                                                        <td>
+
+                                                            {
+                                                                transaction.currency
+                                                            }
+
+                                                        </td>
+
+                                                        <td>
+
+                                                                <span
+                                                                    className={
+                                                                        getTypeClass(
+                                                                            transaction.type
+                                                                        )
+                                                                    }
+                                                                >
+
+                                                                    {
+                                                                        transaction.type
+                                                                    }
+
+                                                                </span>
+
+                                                        </td>
+
+                                                        <td>
+
+                                                                <span
+                                                                    className={
+                                                                        getStatusClass(
+                                                                            transaction.status
+                                                                        )
+                                                                    }
+                                                                >
+
+                                                                    {
+                                                                        transaction.status
+                                                                    }
+
+                                                                </span>
+
+                                                        </td>
+
+                                                        <td>
+
+                                                            {
+                                                                formatDate(
+                                                                    transaction.createdAt
+                                                                )
+                                                            }
+
+                                                        </td>
+
+                                                    </tr>
+
+                                                )
+                                            )}
+
+                                            </tbody>
+
+                                        </table>
+
+                                    </div>
+
                                 )}
 
-                                </tbody>
-
-                            </table>
+                            </div>
 
                         </div>
 
-                    )}
+                    </div>
 
                 </div>
 

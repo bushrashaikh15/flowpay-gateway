@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../services/api";
+import Sidebar from "../components/Sidebar";
 
 function AuditLogs() {
 
+    const navigate = useNavigate();
+
     const [auditLogs, setAuditLogs] = useState([]);
-    const [paymentIntentId, setPaymentIntentId] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
@@ -19,23 +22,10 @@ function AuditLogs() {
             setLoading(true);
             setError("");
 
-            let response;
+            const response =
+                await api.get("/api/audit-logs");
 
-            if (paymentIntentId.trim()) {
-
-                response = await api.get(
-                    `/api/audit-logs/payment/${paymentIntentId}`
-                );
-
-            } else {
-
-                response = await api.get(
-                    "/api/audit-logs"
-                );
-
-            }
-
-            setAuditLogs(response.data);
+            setAuditLogs(response.data || []);
 
         } catch (error) {
 
@@ -43,14 +33,10 @@ function AuditLogs() {
 
             if (error.response?.status === 401) {
 
+                localStorage.removeItem("flowpay_api_key");
+
                 setError(
                     "Session expired or API key is invalid."
-                );
-
-            } else if (error.response?.status === 404) {
-
-                setError(
-                    "Payment intent not found."
                 );
 
             } else {
@@ -63,24 +49,7 @@ function AuditLogs() {
         } finally {
 
             setLoading(false);
-
         }
-    }
-
-    function handleSearch(event) {
-
-        event.preventDefault();
-
-        fetchAuditLogs();
-    }
-
-    function handleClear() {
-
-        setPaymentIntentId("");
-
-        setTimeout(() => {
-            fetchAuditLogs();
-        }, 0);
     }
 
     function formatDate(date) {
@@ -94,274 +63,230 @@ function AuditLogs() {
 
     function getActionClass(action) {
 
-        const value =
-            action?.toUpperCase();
+        switch (action) {
 
-        if (value?.includes("CREATE")) {
-            return "badge bg-secondary";
+            case "PAYMENT_CREATED":
+                return "badge bg-primary";
+
+            case "PAYMENT_AUTHORIZED":
+                return "badge bg-warning text-dark";
+
+            case "PAYMENT_CAPTURED":
+                return "badge bg-success";
+
+            case "PAYMENT_REFUNDED":
+                return "badge bg-info text-dark";
+
+            default:
+                return "badge bg-secondary";
         }
-
-        if (value?.includes("AUTHOR")) {
-            return "badge bg-warning text-dark";
-        }
-
-        if (value?.includes("CAPTURE")) {
-            return "badge bg-success";
-        }
-
-        if (value?.includes("REFUND")) {
-            return "badge bg-info text-dark";
-        }
-
-        return "badge bg-primary";
     }
 
     return (
 
-        <div className="container-fluid p-4">
+        <div className="container-fluid p-0">
 
-            {/* HEADER */}
+            <div className="row g-0">
 
-            <div className="d-flex justify-content-between align-items-center mb-4">
+                <Sidebar />
 
-                <div>
+                <div className="col-md-10">
 
-                    <h2 className="fw-bold mb-1">
-                        Audit Logs
-                    </h2>
+                    <div className="p-4">
 
-                    <p className="text-muted mb-0">
-                        Monitor payment activity and system events
-                    </p>
+                        <div className="d-flex justify-content-between align-items-center mb-4">
 
-                </div>
+                            <div>
 
-                <button
-                    className="btn btn-outline-dark"
-                    onClick={fetchAuditLogs}
-                    disabled={loading}
-                >
-                    ↻ Refresh
-                </button>
+                                <h2 className="fw-bold mb-1">
+                                    Audit Logs
+                                </h2>
 
-            </div>
-
-
-            {/* FILTER */}
-
-            <div className="card shadow-sm mb-4">
-
-                <div className="card-body">
-
-                    <h5 className="mb-3">
-                        Filter Audit Logs
-                    </h5>
-
-                    <form onSubmit={handleSearch}>
-
-                        <div className="row g-3">
-
-                            <div className="col-md-6">
-
-                                <label className="form-label">
-                                    Payment Intent ID
-                                </label>
-
-                                <input
-                                    type="number"
-                                    className="form-control"
-                                    placeholder="Example: 2"
-                                    min="1"
-                                    value={paymentIntentId}
-                                    onChange={(event) =>
-                                        setPaymentIntentId(
-                                            event.target.value
-                                        )
-                                    }
-                                />
+                                <p className="text-muted mb-0">
+                                    Monitor payment activity and system events
+                                </p>
 
                             </div>
 
-                            <div className="col-md-6 d-flex align-items-end gap-2">
+                            <button
+                                className="btn btn-outline-dark"
+                                onClick={fetchAuditLogs}
+                                disabled={loading}
+                            >
+                                ↻ Refresh
+                            </button>
 
-                                <button
-                                    type="submit"
-                                    className="btn btn-dark"
-                                    disabled={loading}
-                                >
-                                    Search
-                                </button>
+                        </div>
 
-                                <button
-                                    type="button"
-                                    className="btn btn-outline-secondary"
-                                    onClick={handleClear}
-                                >
-                                    Clear
-                                </button>
+                        {error && (
 
+                            <div className="alert alert-danger">
+                                {error}
                             </div>
 
-                        </div>
+                        )}
 
-                    </form>
+                        <div className="card shadow-sm">
 
-                </div>
+                            <div className="card-body">
 
-            </div>
+                                <div className="d-flex justify-content-between align-items-center mb-3">
 
+                                    <h5 className="mb-0">
+                                        Activity Log
+                                    </h5>
 
-            {/* ERROR */}
+                                    <span className="text-muted">
+                                        Total: {auditLogs.length}
+                                    </span>
 
-            {error && (
+                                </div>
 
-                <div className="alert alert-danger">
-                    {error}
-                </div>
+                                {loading ? (
 
-            )}
+                                    <div className="text-center py-5">
 
+                                        <div
+                                            className="spinner-border"
+                                            role="status"
+                                        />
 
-            {/* LOGS */}
+                                        <p className="mt-2 text-muted">
+                                            Loading audit logs...
+                                        </p>
 
-            <div className="card shadow-sm">
+                                    </div>
 
-                <div className="card-body">
+                                ) : auditLogs.length === 0 ? (
 
-                    <div className="d-flex justify-content-between align-items-center mb-3">
+                                    <div className="text-center py-5">
 
-                        <h5 className="mb-0">
-                            Activity History
-                        </h5>
+                                        <h5>
+                                            No Audit Logs Found
+                                        </h5>
 
-                        <span className="text-muted">
-                            Total: {auditLogs.length}
-                        </span>
+                                        <p className="text-muted">
+                                            Audit activity will appear here when
+                                            payment actions are performed.
+                                        </p>
 
-                    </div>
+                                        <button
+                                            className="btn btn-dark"
+                                            onClick={() =>
+                                                navigate(
+                                                    "/payment-intents"
+                                                )
+                                            }
+                                        >
+                                            View Payment Intents
+                                        </button>
 
+                                    </div>
 
-                    {loading ? (
+                                ) : (
 
-                        <div className="text-center py-5">
+                                    <div className="table-responsive">
 
-                            <div
-                                className="spinner-border"
-                                role="status"
-                            />
+                                        <table className="table table-hover align-middle">
 
-                            <p className="mt-2 text-muted">
-                                Loading audit logs...
-                            </p>
+                                            <thead className="table-light">
 
-                        </div>
+                                            <tr>
 
-                    ) : auditLogs.length === 0 ? (
+                                                <th>
+                                                    ID
+                                                </th>
 
-                        <div className="text-center py-5">
+                                                <th>
+                                                    Payment Intent
+                                                </th>
 
-                            <h5>
-                                No Audit Logs Found
-                            </h5>
+                                                <th>
+                                                    Action
+                                                </th>
 
-                            <p className="text-muted">
-                                Payment activity will appear here.
-                            </p>
+                                                <th>
+                                                    Description
+                                                </th>
 
-                        </div>
+                                                <th>
+                                                    Created At
+                                                </th>
 
-                    ) : (
+                                            </tr>
 
-                        <div className="table-responsive">
+                                            </thead>
 
-                            <table className="table table-hover align-middle">
+                                            <tbody>
 
-                                <thead className="table-light">
+                                            {auditLogs.map(
+                                                (log) => (
 
-                                <tr>
-
-                                    <th>ID</th>
-
-                                    <th>
-                                        Payment Intent
-                                    </th>
-
-                                    <th>
-                                        Action
-                                    </th>
-
-                                    <th>
-                                        Description
-                                    </th>
-
-                                    <th>
-                                        Created At
-                                    </th>
-
-                                </tr>
-
-                                </thead>
-
-                                <tbody>
-
-                                {auditLogs.map(
-                                    (log) => (
-
-                                        <tr key={log.id}>
-
-                                            <td className="fw-semibold">
-                                                #{log.id}
-                                            </td>
-
-                                            <td>
-                                                #
-                                                {
-                                                    log.paymentIntentId
-                                                }
-                                            </td>
-
-                                            <td>
-
-                                                    <span
-                                                        className={
-                                                            getActionClass(
-                                                                log.action
-                                                            )
+                                                    <tr
+                                                        key={
+                                                            log.id
                                                         }
                                                     >
-                                                        {
-                                                            log.action
-                                                        }
-                                                    </span>
 
-                                            </td>
+                                                        <td className="fw-semibold">
+                                                            #{log.id}
+                                                        </td>
 
-                                            <td>
-                                                {
-                                                    log.description
-                                                }
-                                            </td>
+                                                        <td>
+                                                            #
+                                                            {
+                                                                log.paymentIntentId
+                                                            }
+                                                        </td>
 
-                                            <td>
-                                                {
-                                                    formatDate(
-                                                        log.createdAt
-                                                    )
-                                                }
-                                            </td>
+                                                        <td>
 
-                                        </tr>
+                                                                <span
+                                                                    className={
+                                                                        getActionClass(
+                                                                            log.action
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    {
+                                                                        log.action
+                                                                    }
+                                                                </span>
 
-                                    )
+                                                        </td>
+
+                                                        <td>
+                                                            {
+                                                                log.description
+                                                            }
+                                                        </td>
+
+                                                        <td>
+                                                            {
+                                                                formatDate(
+                                                                    log.createdAt
+                                                                )
+                                                            }
+                                                        </td>
+
+                                                    </tr>
+
+                                                )
+                                            )}
+
+                                            </tbody>
+
+                                        </table>
+
+                                    </div>
+
                                 )}
 
-                                </tbody>
-
-                            </table>
+                            </div>
 
                         </div>
 
-                    )}
+                    </div>
 
                 </div>
 
