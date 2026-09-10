@@ -96,8 +96,17 @@ public class SecurityConfig {
         CorsConfiguration configuration =
                 new CorsConfiguration();
 
+        /*
+         * Allow both Vite development ports.
+         *
+         * 5173 = original frontend port
+         * 5174 = current frontend port
+         */
         configuration.setAllowedOrigins(
-                List.of("http://localhost:5173")
+                List.of(
+                        "http://localhost:5173",
+                        "http://localhost:5174"
+                )
         );
 
         configuration.setAllowedMethods(
@@ -113,7 +122,8 @@ public class SecurityConfig {
         configuration.setAllowedHeaders(
                 List.of(
                         "Content-Type",
-                        "X-API-KEY"
+                        "X-API-KEY",
+                        "Idempotency-Key"
                 )
         );
 
@@ -180,18 +190,29 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth ->
                         auth
+                                /*
+                                 * Browser CORS preflight requests
+                                 * must be allowed without API key.
+                                 */
                                 .requestMatchers(
                                         HttpMethod.OPTIONS,
                                         "/**"
                                 )
                                 .permitAll()
 
+                                /*
+                                 * Merchant registration is public.
+                                 */
                                 .requestMatchers(
                                         HttpMethod.POST,
                                         "/api/merchants"
                                 )
                                 .permitAll()
 
+                                /*
+                                 * Everything else requires
+                                 * a valid X-API-KEY.
+                                 */
                                 .anyRequest()
                                 .authenticated()
                 )

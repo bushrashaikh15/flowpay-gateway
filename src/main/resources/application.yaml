@@ -27,3 +27,7 @@ server:
 flowpay:
   webhook:
     secret: ${FLOWPAY_WEBHOOK_SECRET}
+
+ollama:
+  base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+  model: ${OLLAMA_MODEL:llama3}
