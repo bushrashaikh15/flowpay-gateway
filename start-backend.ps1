@@ -1,40 +1,41 @@
-$env:SPRING_DATASOURCE_URL="jdbc:postgresql://localhost:5433/flowpay_db"
-$env:SPRING_DATASOURCE_USERNAME="postgres"
+# FlowPay Backend Startup Script
+# Uses PostgreSQL + Redis + local Ollama AI
 
-$env:SPRING_DATASOURCE_PASSWORD=(
+$ErrorActionPreference = "Stop"
+
+Write-Host "Starting FlowPay backend..." -ForegroundColor Cyan
+
+# PostgreSQL
+$env:SPRING_DATASOURCE_URL = "jdbc:postgresql://localhost:5433/flowpay_db"
+$env:SPRING_DATASOURCE_USERNAME = "postgres"
+
+# Get PostgreSQL password from Docker container
+$env:SPRING_DATASOURCE_PASSWORD = (
     docker inspect flowpay-postgres --format "{{range .Config.Env}}{{println .}}{{end}}" |
     Select-String "^POSTGRES_PASSWORD=" |
-    ForEach-Object {
-        $_.ToString().Split("=",2)[1]
-    }
+    ForEach-Object { $_.ToString().Split("=",2)[1] }
 )
 
-$env:SPRING_DATA_REDIS_HOST="localhost"
-$env:SPRING_DATA_REDIS_PORT="6380"
+# Redis
+$env:SPRING_DATA_REDIS_HOST = "localhost"
+$env:SPRING_DATA_REDIS_PORT = "6380"
 
-$env:FLOWPAY_WEBHOOK_SECRET="flowpay-local-webhook-secret"
+# Webhook secret
+$env:FLOWPAY_WEBHOOK_SECRET = "flowpay-local-webhook-secret"
 
-$env:JAVA_TOOL_OPTIONS="-Duser.timezone=Asia/Kolkata"
+# Timezone
+$env:JAVA_TOOL_OPTIONS = "-Duser.timezone=Asia/Kolkata"
 
-# OpenAI configuration
-if ([string]::IsNullOrWhiteSpace($env:OPENAI_API_KEY)) {
-    Write-Host ""
-    Write-Host "ERROR: OPENAI_API_KEY is not set." -ForegroundColor Red
-    Write-Host ""
-    Write-Host "Set it in PowerShell before starting the backend:" -ForegroundColor Yellow
-    Write-Host '$env:OPENAI_API_KEY="YOUR_OPENAI_API_KEY"' -ForegroundColor Yellow
-    Write-Host '$env:OPENAI_MODEL="gpt-5.6"' -ForegroundColor Yellow
-    Write-Host ""
-    exit 1
-}
+# Local Ollama AI
+$env:OLLAMA_BASE_URL = "http://localhost:11434"
+$env:OLLAMA_MODEL = "llama3"
 
-if ([string]::IsNullOrWhiteSpace($env:OPENAI_MODEL)) {
-    $env:OPENAI_MODEL="gpt-5.6"
-}
+Write-Host "PostgreSQL: localhost:5433" -ForegroundColor Green
+Write-Host "Redis:      localhost:6380" -ForegroundColor Green
+Write-Host "Ollama:     localhost:11434" -ForegroundColor Green
+Write-Host "AI Model:   llama3" -ForegroundColor Green
 
 Write-Host ""
-Write-Host "Starting FlowPay backend..." -ForegroundColor Green
-Write-Host "OpenAI model: $env:OPENAI_MODEL" -ForegroundColor Green
-Write-Host ""
+Write-Host "Starting Spring Boot..." -ForegroundColor Cyan
 
 .\mvnw.cmd spring-boot:run

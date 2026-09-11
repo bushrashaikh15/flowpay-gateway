@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import Sidebar from "../components/Sidebar";
 
 function PaymentIntents() {
 
-    const navigate = useNavigate();
+    // =============================================================
+    // PAYMENT INTENTS
+    // =============================================================
 
     const [paymentIntents, setPaymentIntents] = useState([]);
 
@@ -23,18 +24,47 @@ function PaymentIntents() {
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
 
-    // Create payment form
+
+    // =============================================================
+    // CREATE PAYMENT
+    // =============================================================
+
     const [showCreateForm, setShowCreateForm] = useState(false);
+
     const [amount, setAmount] = useState("");
     const [createCurrency, setCreateCurrency] = useState("INR");
     const [merchantId, setMerchantId] = useState("2");
     const [creating, setCreating] = useState(false);
 
+
+    // =============================================================
+    // FRAUD INSIGHT
+    // =============================================================
+
+    const [showFraudModal, setShowFraudModal] = useState(false);
+
+    const [fraudInsight, setFraudInsight] = useState(null);
+
+    const [fraudLoading, setFraudLoading] = useState(false);
+
+    const [fraudError, setFraudError] = useState("");
+
+
+    // =============================================================
+    // CONSTANTS
+    // =============================================================
+
     const pageSize = 10;
+
+
+    // =============================================================
+    // FETCH PAYMENT INTENTS
+    // =============================================================
 
     useEffect(() => {
         fetchPaymentIntents();
     }, [page]);
+
 
     async function fetchPaymentIntents() {
 
@@ -53,8 +83,12 @@ function PaymentIntents() {
             }
 
             if (currency.trim()) {
+
                 params.currency =
-                    currency.trim().toUpperCase();
+                    currency
+                        .trim()
+                        .toUpperCase();
+
             }
 
             if (minAmount !== "") {
@@ -65,17 +99,20 @@ function PaymentIntents() {
                 params.maxAmount = maxAmount;
             }
 
+
             const response =
                 await api.get(
                     "/api/payment-intents",
                     { params }
                 );
 
+
             setPaymentIntents(
                 response.data.content || []
             );
 
             setPageData(response.data);
+
 
         } catch (error) {
 
@@ -92,6 +129,7 @@ function PaymentIntents() {
                 setError(
                     "Unable to load payment intents."
                 );
+
             }
 
         } finally {
@@ -102,6 +140,10 @@ function PaymentIntents() {
     }
 
 
+    // =============================================================
+    // SEARCH
+    // =============================================================
+
     function handleSearch(event) {
 
         event.preventDefault();
@@ -109,14 +151,21 @@ function PaymentIntents() {
         setSuccess("");
         setError("");
 
-        // If already on page 0, fetch manually.
         if (page === 0) {
+
             fetchPaymentIntents();
+
         } else {
+
             setPage(0);
+
         }
     }
 
+
+    // =============================================================
+    // CLEAR FILTERS
+    // =============================================================
 
     function handleClearFilters() {
 
@@ -129,12 +178,20 @@ function PaymentIntents() {
         setError("");
 
         if (page === 0) {
+
             fetchPaymentIntents();
+
         } else {
+
             setPage(0);
+
         }
     }
 
+
+    // =============================================================
+    // OPEN CREATE FORM
+    // =============================================================
 
     function openCreateForm() {
 
@@ -149,13 +206,23 @@ function PaymentIntents() {
     }
 
 
+    // =============================================================
+    // CLOSE CREATE FORM
+    // =============================================================
+
     function closeCreateForm() {
 
         if (!creating) {
+
             setShowCreateForm(false);
+
         }
     }
 
+
+    // =============================================================
+    // CREATE PAYMENT
+    // =============================================================
 
     async function handleCreatePayment(event) {
 
@@ -163,6 +230,7 @@ function PaymentIntents() {
 
         setError("");
         setSuccess("");
+
 
         if (!amount || Number(amount) <= 0) {
 
@@ -173,6 +241,7 @@ function PaymentIntents() {
             return;
         }
 
+
         if (!createCurrency.trim()) {
 
             setError(
@@ -181,6 +250,7 @@ function PaymentIntents() {
 
             return;
         }
+
 
         if (!merchantId || Number(merchantId) <= 0) {
 
@@ -191,12 +261,15 @@ function PaymentIntents() {
             return;
         }
 
+
         try {
 
             setCreating(true);
 
+
             const idempotencyKey =
                 crypto.randomUUID();
+
 
             const requestData = {
 
@@ -212,6 +285,7 @@ function PaymentIntents() {
 
             };
 
+
             const response =
                 await api.post(
                     "/api/payment-intents",
@@ -224,24 +298,30 @@ function PaymentIntents() {
                     }
                 );
 
+
             const createdPayment =
                 response.data;
+
 
             setShowCreateForm(false);
 
             setAmount("");
 
+
             setSuccess(
                 `Payment Intent #${createdPayment.id} successfully created.`
             );
+
 
             setPage(0);
 
             await fetchPaymentIntents();
 
+
         } catch (error) {
 
             console.error(error);
+
 
             if (error.response?.status === 401) {
 
@@ -261,6 +341,7 @@ function PaymentIntents() {
                 setError(
                     "Unable to create payment intent."
                 );
+
             }
 
         } finally {
@@ -270,6 +351,10 @@ function PaymentIntents() {
         }
     }
 
+
+    // =============================================================
+    // PAYMENT ACTION
+    // =============================================================
 
     async function handlePaymentAction(
         paymentId,
@@ -283,11 +368,14 @@ function PaymentIntents() {
             setError("");
             setSuccess("");
 
+
             await api.put(
                 `/api/payment-intents/${paymentId}/${action}`
             );
 
+
             let message = "";
+
 
             if (action === "authorize") {
 
@@ -303,15 +391,20 @@ function PaymentIntents() {
 
                 message =
                     `Payment Intent #${paymentId} successfully refunded.`;
+
             }
+
 
             setSuccess(message);
 
+
             await fetchPaymentIntents();
+
 
         } catch (error) {
 
             console.error(error);
+
 
             if (error.response?.status === 401) {
 
@@ -331,6 +424,7 @@ function PaymentIntents() {
                 setError(
                     "Unable to update payment intent."
                 );
+
             }
 
         } finally {
@@ -341,15 +435,135 @@ function PaymentIntents() {
     }
 
 
+    // =============================================================
+    // FRAUD INSIGHT
+    // =============================================================
+
+    async function handleFraudInsight(paymentId) {
+
+        try {
+
+            setFraudLoading(true);
+
+            setFraudError("");
+
+            setFraudInsight(null);
+
+            setShowFraudModal(true);
+
+
+            /*
+             * IMPORTANT:
+             *
+             * Backend controller:
+             *
+             * @RequestMapping("/api/fraud-insights")
+             *
+             * @GetMapping("/payment/{paymentIntentId}")
+             *
+             * Therefore the complete endpoint is:
+             *
+             * /api/fraud-insights/payment/{paymentId}
+             */
+
+            const response =
+                await api.get(
+                    `/api/fraud-insights/payment/${paymentId}`
+                );
+
+
+            setFraudInsight(
+                response.data
+            );
+
+
+        } catch (error) {
+
+            console.error(
+                "Fraud insight error:",
+                error
+            );
+
+
+            if (error.response?.status === 401) {
+
+                setFraudError(
+                    "Session expired or API key is invalid."
+                );
+
+            } else if (error.response?.status === 403) {
+
+                setFraudError(
+                    "You are not authorized to analyze this payment."
+                );
+
+            } else if (error.response?.status === 404) {
+
+                setFraudError(
+                    "Payment intent not found."
+                );
+
+            } else if (error.response?.status === 500) {
+
+                setFraudError(
+                    "The backend could not generate the fraud insight. Check the backend terminal for the exact error."
+                );
+
+            } else {
+
+                setFraudError(
+                    "Unable to generate fraud insight."
+                );
+
+            }
+
+        } finally {
+
+            setFraudLoading(false);
+
+        }
+    }
+
+
+    // =============================================================
+    // CLOSE FRAUD MODAL
+    // =============================================================
+
+    function closeFraudModal() {
+
+        if (!fraudLoading) {
+
+            setShowFraudModal(false);
+
+            setFraudInsight(null);
+
+            setFraudError("");
+
+        }
+    }
+
+
+    // =============================================================
+    // FORMAT DATE
+    // =============================================================
+
     function formatDate(date) {
 
         if (!date) {
+
             return "-";
+
         }
 
-        return new Date(date).toLocaleString();
+        return new Date(date)
+            .toLocaleString();
+
     }
 
+
+    // =============================================================
+    // STATUS CLASS
+    // =============================================================
 
     function getStatusClass(status) {
 
@@ -372,15 +586,47 @@ function PaymentIntents() {
 
             default:
                 return "badge bg-secondary";
+
         }
+
     }
 
+
+    // =============================================================
+    // FRAUD RISK CLASS
+    // =============================================================
+
+    function getRiskClass(riskLevel) {
+
+        switch (riskLevel) {
+
+            case "HIGH":
+                return "badge bg-danger";
+
+            case "MEDIUM":
+                return "badge bg-warning text-dark";
+
+            case "LOW":
+                return "badge bg-success";
+
+            default:
+                return "badge bg-secondary";
+
+        }
+
+    }
+
+
+    // =============================================================
+    // PAYMENT ACTION BUTTON
+    // =============================================================
 
     function renderActionButton(payment) {
 
         if (payment.status === "CREATED") {
 
             return (
+
                 <button
                     className="btn btn-sm btn-warning"
                     disabled={actionLoading}
@@ -393,12 +639,16 @@ function PaymentIntents() {
                 >
                     Authorize
                 </button>
+
             );
+
         }
+
 
         if (payment.status === "AUTHORIZED") {
 
             return (
+
                 <button
                     className="btn btn-sm btn-success"
                     disabled={actionLoading}
@@ -411,12 +661,16 @@ function PaymentIntents() {
                 >
                     Capture
                 </button>
+
             );
+
         }
+
 
         if (payment.status === "CAPTURED") {
 
             return (
+
                 <button
                     className="btn btn-sm btn-info"
                     disabled={actionLoading}
@@ -429,16 +683,26 @@ function PaymentIntents() {
                 >
                     Refund
                 </button>
+
             );
+
         }
 
+
         return (
+
             <span className="text-muted">
                 Completed
             </span>
+
         );
+
     }
 
+
+    // =============================================================
+    // RENDER
+    // =============================================================
 
     return (
 
@@ -446,16 +710,24 @@ function PaymentIntents() {
 
             <div className="row">
 
-                {/* REUSABLE SIDEBAR */}
+
+                {/* =================================================
+                    SIDEBAR
+                ================================================= */}
 
                 <Sidebar />
 
 
-                {/* MAIN CONTENT */}
+                {/* =================================================
+                    MAIN CONTENT
+                ================================================= */}
 
                 <div className="col-md-10 p-4">
 
-                    {/* HEADER */}
+
+                    {/* =================================================
+                        HEADER
+                    ================================================= */}
 
                     <div className="d-flex justify-content-between align-items-center mb-4">
 
@@ -471,6 +743,7 @@ function PaymentIntents() {
 
                         </div>
 
+
                         <button
                             className="btn btn-dark"
                             onClick={openCreateForm}
@@ -481,7 +754,9 @@ function PaymentIntents() {
                     </div>
 
 
-                    {/* SUCCESS MESSAGE */}
+                    {/* =================================================
+                        SUCCESS MESSAGE
+                    ================================================= */}
 
                     {success && (
 
@@ -492,7 +767,9 @@ function PaymentIntents() {
                     )}
 
 
-                    {/* ERROR MESSAGE */}
+                    {/* =================================================
+                        ERROR MESSAGE
+                    ================================================= */}
 
                     {error && (
 
@@ -503,7 +780,9 @@ function PaymentIntents() {
                     )}
 
 
-                    {/* CREATE PAYMENT FORM */}
+                    {/* =================================================
+                        CREATE PAYMENT FORM
+                    ================================================= */}
 
                     {showCreateForm && (
 
@@ -511,11 +790,13 @@ function PaymentIntents() {
 
                             <div className="card-body">
 
+
                                 <div className="d-flex justify-content-between align-items-center mb-3">
 
                                     <h5 className="mb-0">
                                         Create Payment Intent
                                     </h5>
+
 
                                     <button
                                         type="button"
@@ -534,6 +815,7 @@ function PaymentIntents() {
                                 >
 
                                     <div className="row g-3">
+
 
                                         {/* AMOUNT */}
 
@@ -611,7 +893,9 @@ function PaymentIntents() {
                                             <input
                                                 type="number"
                                                 className="form-control"
-                                                value={merchantId}
+                                                value={
+                                                    merchantId
+                                                }
                                                 onChange={(event) =>
                                                     setMerchantId(
                                                         event.target.value
@@ -642,6 +926,7 @@ function PaymentIntents() {
                                                     : "Create"}
                                             </button>
 
+
                                             <button
                                                 type="button"
                                                 className="btn btn-outline-secondary"
@@ -666,19 +951,24 @@ function PaymentIntents() {
                     )}
 
 
-                    {/* FILTER CARD */}
+                    {/* =================================================
+                        FILTER CARD
+                    ================================================= */}
 
                     <div className="card shadow-sm mb-4">
 
                         <div className="card-body">
 
+
                             <h5 className="card-title mb-3">
                                 Filters
                             </h5>
 
+
                             <form onSubmit={handleSearch}>
 
                                 <div className="row g-3">
+
 
                                     {/* STATUS */}
 
@@ -810,6 +1100,7 @@ function PaymentIntents() {
                                             Search
                                         </button>
 
+
                                         <button
                                             type="button"
                                             className="btn btn-outline-secondary"
@@ -831,17 +1122,21 @@ function PaymentIntents() {
                     </div>
 
 
-                    {/* PAYMENT INTENT LIST */}
+                    {/* =================================================
+                        PAYMENT INTENT LIST
+                    ================================================= */}
 
                     <div className="card shadow-sm">
 
                         <div className="card-body">
+
 
                             <div className="d-flex justify-content-between align-items-center mb-3">
 
                                 <h5 className="mb-0">
                                     Payment Intent List
                                 </h5>
+
 
                                 {pageData && (
 
@@ -886,6 +1181,7 @@ function PaymentIntents() {
                                         intent above.
                                     </p>
 
+
                                     <button
                                         className="btn btn-dark"
                                         onClick={
@@ -904,17 +1200,26 @@ function PaymentIntents() {
 
                                     <table className="table table-hover align-middle">
 
+
                                         <thead className="table-light">
 
                                         <tr>
 
                                             <th>ID</th>
+
                                             <th>Amount</th>
+
                                             <th>Currency</th>
+
                                             <th>Status</th>
+
                                             <th>Merchant</th>
+
                                             <th>Created At</th>
+
                                             <th>Action</th>
+
+                                            <th>Fraud</th>
 
                                         </tr>
 
@@ -932,6 +1237,9 @@ function PaymentIntents() {
                                                     }
                                                 >
 
+
+                                                    {/* ID */}
+
                                                     <td>
                                                         #
                                                         {
@@ -939,54 +1247,103 @@ function PaymentIntents() {
                                                         }
                                                     </td>
 
+
+                                                    {/* AMOUNT */}
+
                                                     <td className="fw-semibold">
+
                                                         {
                                                             payment.amount
                                                         }
+
                                                     </td>
 
+
+                                                    {/* CURRENCY */}
+
                                                     <td>
+
                                                         {
                                                             payment.currency
                                                         }
+
                                                     </td>
+
+
+                                                    {/* STATUS */}
 
                                                     <td>
 
-                                                            <span
-                                                                className={
-                                                                    getStatusClass(
-                                                                        payment.status
-                                                                    )
-                                                                }
-                                                            >
-                                                                {
+                                                        <span
+                                                            className={
+                                                                getStatusClass(
                                                                     payment.status
-                                                                }
-                                                            </span>
+                                                                )
+                                                            }
+                                                        >
+                                                            {
+                                                                payment.status
+                                                            }
+                                                        </span>
 
                                                     </td>
 
+
+                                                    {/* MERCHANT */}
+
                                                     <td>
+
                                                         {
                                                             payment.merchantName
                                                         }
+
                                                     </td>
 
+
+                                                    {/* CREATED */}
+
                                                     <td>
+
                                                         {
                                                             formatDate(
                                                                 payment.createdAt
                                                             )
                                                         }
+
                                                     </td>
 
+
+                                                    {/* ACTION */}
+
                                                     <td>
+
                                                         {
                                                             renderActionButton(
                                                                 payment
                                                             )
                                                         }
+
+                                                    </td>
+
+
+                                                    {/* FRAUD */}
+
+                                                    <td>
+
+                                                        <button
+                                                            className="btn btn-sm btn-outline-danger"
+                                                            onClick={() =>
+                                                                handleFraudInsight(
+                                                                    payment.id
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                fraudLoading
+                                                            }
+                                                        >
+                                                            🔍 Fraud Insight
+                                                        </button>
+
                                                     </td>
 
                                                 </tr>
@@ -1003,12 +1360,15 @@ function PaymentIntents() {
                             )}
 
 
-                            {/* PAGINATION */}
+                            {/* =================================================
+                                PAGINATION
+                            ================================================= */}
 
                             {pageData &&
                                 pageData.totalPages > 1 && (
 
                                     <div className="d-flex justify-content-between align-items-center mt-3">
+
 
                                         <button
                                             className="btn btn-outline-dark"
@@ -1027,12 +1387,16 @@ function PaymentIntents() {
 
 
                                         <span className="text-muted">
+
                                             Page{" "}
                                             {page + 1}{" "}
+
                                             of{" "}
+
                                             {
                                                 pageData.totalPages
                                             }
+
                                         </span>
 
 
@@ -1040,8 +1404,7 @@ function PaymentIntents() {
                                             className="btn btn-outline-dark"
                                             disabled={
                                                 page >=
-                                                pageData.totalPages -
-                                                1 ||
+                                                pageData.totalPages - 1 ||
                                                 loading
                                             }
                                             onClick={() =>
@@ -1065,7 +1428,357 @@ function PaymentIntents() {
 
             </div>
 
+
+            {/* =============================================================
+                FRAUD INSIGHT MODAL
+            ============================================================= */}
+
+            {showFraudModal && (
+
+                <div
+                    className="modal d-block"
+                    tabIndex="-1"
+                    style={{
+                        backgroundColor:
+                            "rgba(0, 0, 0, 0.55)"
+                    }}
+                >
+
+                    <div className="modal-dialog modal-lg modal-dialog-centered">
+
+                        <div className="modal-content">
+
+
+                            {/* =================================================
+                                MODAL HEADER
+                            ================================================= */}
+
+                            <div className="modal-header">
+
+                                <h5 className="modal-title fw-bold">
+
+                                    🤖 AI Fraud Insight
+
+                                </h5>
+
+
+                                <button
+                                    type="button"
+                                    className="btn-close"
+                                    onClick={
+                                        closeFraudModal
+                                    }
+                                    disabled={
+                                        fraudLoading
+                                    }
+                                />
+
+                            </div>
+
+
+                            {/* =================================================
+                                MODAL BODY
+                            ================================================= */}
+
+                            <div className="modal-body">
+
+
+                                {/* LOADING */}
+
+                                {fraudLoading && (
+
+                                    <div className="text-center py-5">
+
+                                        <div
+                                            className="spinner-border text-danger"
+                                            role="status"
+                                        />
+
+                                        <p className="mt-3 mb-0">
+
+                                            Analyzing payment risk...
+
+                                        </p>
+
+                                        <small className="text-muted">
+
+                                            FlowPay rules + AI explanation
+
+                                        </small>
+
+                                    </div>
+
+                                )}
+
+
+                                {/* ERROR */}
+
+                                {!fraudLoading &&
+                                    fraudError && (
+
+                                        <div className="alert alert-danger">
+
+                                            {fraudError}
+
+                                        </div>
+
+                                    )}
+
+
+                                {/* RESULT */}
+
+                                {!fraudLoading &&
+                                    !fraudError &&
+                                    fraudInsight && (
+
+                                        <div>
+
+
+                                            {/* =================================================
+                                                SUMMARY CARDS
+                                            ================================================= */}
+
+                                            <div className="row g-3 mb-4">
+
+
+                                                {/* RISK SCORE */}
+
+                                                <div className="col-md-4">
+
+                                                    <div className="card h-100">
+
+                                                        <div className="card-body text-center">
+
+                                                            <h6 className="text-muted">
+                                                                Risk Score
+                                                            </h6>
+
+
+                                                            <div className="display-5 fw-bold">
+
+                                                                {
+                                                                    fraudInsight.riskScore
+                                                                }
+
+                                                                <small className="fs-5">
+                                                                    /100
+                                                                </small>
+
+                                                            </div>
+
+                                                        </div>
+
+                                                    </div>
+
+                                                </div>
+
+
+                                                {/* RISK LEVEL */}
+
+                                                <div className="col-md-4">
+
+                                                    <div className="card h-100">
+
+                                                        <div className="card-body text-center">
+
+                                                            <h6 className="text-muted">
+                                                                Risk Level
+                                                            </h6>
+
+
+                                                            <span
+                                                                className={
+                                                                    getRiskClass(
+                                                                        fraudInsight.riskLevel
+                                                                    ) +
+                                                                    " fs-6"
+                                                                }
+                                                            >
+                                                                {
+                                                                    fraudInsight.riskLevel
+                                                                }
+                                                            </span>
+
+                                                        </div>
+
+                                                    </div>
+
+                                                </div>
+
+
+                                                {/* PAYMENT ID */}
+
+                                                <div className="col-md-4">
+
+                                                    <div className="card h-100">
+
+                                                        <div className="card-body text-center">
+
+                                                            <h6 className="text-muted">
+                                                                Payment Intent
+                                                            </h6>
+
+
+                                                            <div className="fw-bold fs-4">
+
+                                                                #
+                                                                {
+                                                                    fraudInsight.paymentIntentId
+                                                                }
+
+                                                            </div>
+
+                                                        </div>
+
+                                                    </div>
+
+                                                </div>
+
+                                            </div>
+
+
+                                            {/* =================================================
+                                                RISK SIGNALS
+                                            ================================================= */}
+
+                                            <div className="card mb-3">
+
+                                                <div className="card-body">
+
+                                                    <h6 className="fw-bold">
+
+                                                        Risk Signals
+
+                                                    </h6>
+
+
+                                                    {fraudInsight.riskSignals &&
+                                                    fraudInsight.riskSignals.length > 0 ? (
+
+                                                        <ul className="mb-0">
+
+                                                            {
+                                                                fraudInsight.riskSignals.map(
+                                                                    (
+                                                                        signal,
+                                                                        index
+                                                                    ) => (
+
+                                                                        <li
+                                                                            key={
+                                                                                index
+                                                                            }
+                                                                        >
+                                                                            {
+                                                                                signal
+                                                                            }
+                                                                        </li>
+
+                                                                    )
+                                                                )
+                                                            }
+
+                                                        </ul>
+
+                                                    ) : (
+
+                                                        <p className="text-success mb-0">
+
+                                                            ✓ No significant
+                                                            risk signals
+                                                            detected.
+
+                                                        </p>
+
+                                                    )}
+
+                                                </div>
+
+                                            </div>
+
+
+                                            {/* =================================================
+                                                AI EXPLANATION
+                                            ================================================= */}
+
+                                            <div className="card mb-3">
+
+                                                <div className="card-body">
+
+                                                    <h6 className="fw-bold">
+
+                                                        AI Explanation
+
+                                                    </h6>
+
+
+                                                    <p className="mb-0">
+
+                                                        {
+                                                            fraudInsight.aiExplanation
+                                                        }
+
+                                                    </p>
+
+                                                </div>
+
+                                            </div>
+
+
+                                            {/* =================================================
+                                                DISCLAIMER
+                                            ================================================= */}
+
+                                            <div className="alert alert-warning mb-0">
+
+                                                <strong>
+                                                    Disclaimer:
+                                                </strong>{" "}
+
+                                                {
+                                                    fraudInsight.disclaimer
+                                                }
+
+                                            </div>
+
+                                        </div>
+
+                                    )}
+
+                            </div>
+
+
+                            {/* =================================================
+                                MODAL FOOTER
+                            ================================================= */}
+
+                            <div className="modal-footer">
+
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    onClick={
+                                        closeFraudModal
+                                    }
+                                    disabled={
+                                        fraudLoading
+                                    }
+                                >
+                                    Close
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            )}
+
         </div>
+
     );
 }
 
