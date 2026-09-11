@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -16,10 +17,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private final StringRedisTemplate redisTemplate;
 
-    private static final int MAX_REQUESTS = 10;
+    private static final int MAX_REQUESTS = 60;
     private static final Duration WINDOW = Duration.ofMinutes(1);
 
-    public RateLimitFilter(StringRedisTemplate redisTemplate) {
+    public RateLimitFilter(
+            StringRedisTemplate redisTemplate) {
+
         this.redisTemplate = redisTemplate;
     }
 
@@ -30,21 +33,51 @@ public class RateLimitFilter extends OncePerRequestFilter {
             FilterChain filterChain)
             throws ServletException, IOException {
 
-        String clientIp = getClientIp(request);
+        // Do not rate-limit browser CORS preflight requests.
+        if ("OPTIONS".equalsIgnoreCase(
+                request.getMethod())) {
 
-        String redisKey = "rate-limit:" + clientIp;
-
-        Long requestCount =
-                redisTemplate.opsForValue().increment(redisKey);
-
-        if (requestCount != null && requestCount == 1) {
-            redisTemplate.expire(redisKey, WINDOW);
+            filterChain.doFilter(request, response);
+            return;
         }
 
-        if (requestCount != null && requestCount > MAX_REQUESTS) {
+        // Only rate-limit FlowPay API requests.
+        String requestUri =
+                request.getRequestURI();
+
+        if (!requestUri.startsWith("/api/")) {
+
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        String clientIp =
+                getClientIp(request);
+
+        String redisKey =
+                "rate-limit:" + clientIp;
+
+        Long requestCount =
+                redisTemplate
+                        .opsForValue()
+                        .increment(redisKey);
+
+        if (requestCount != null &&
+                requestCount == 1) {
+
+            redisTemplate.expire(
+                    redisKey,
+                    WINDOW
+            );
+        }
+
+        if (requestCount != null &&
+                requestCount > MAX_REQUESTS) {
 
             response.setStatus(429);
-            response.setContentType("application/json");
+            response.setContentType(
+                    "application/json"
+            );
 
             response.getWriter().write(
                     """
@@ -59,16 +92,26 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
-        filterChain.doFilter(request, response);
+        filterChain.doFilter(
+                request,
+                response
+        );
     }
 
-    private String getClientIp(HttpServletRequest request) {
+    private String getClientIp(
+            HttpServletRequest request) {
 
         String forwardedFor =
-                request.getHeader("X-Forwarded-For");
+                request.getHeader(
+                        "X-Forwarded-For"
+                );
 
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
+        if (forwardedFor != null &&
+                !forwardedFor.isBlank()) {
+
+            return forwardedFor
+                    .split(",")[0]
+                    .trim();
         }
 
         return request.getRemoteAddr();
