@@ -31,6 +31,9 @@ function Sidebar() {
                 FlowPay
             </h3>
 
+
+            {/* DASHBOARD */}
+
             <div
                 className={getClass("/dashboard")}
                 style={{ cursor: "pointer" }}
@@ -38,6 +41,9 @@ function Sidebar() {
             >
                 Dashboard
             </div>
+
+
+            {/* PAYMENTS */}
 
             <div
                 className={getClass("/payment-intents")}
@@ -47,6 +53,9 @@ function Sidebar() {
                 Payments
             </div>
 
+
+            {/* TRANSACTIONS */}
+
             <div
                 className={getClass("/transactions")}
                 style={{ cursor: "pointer" }}
@@ -54,6 +63,9 @@ function Sidebar() {
             >
                 Transactions
             </div>
+
+
+            {/* AUDIT LOGS */}
 
             <div
                 className={getClass("/audit-logs")}
@@ -63,7 +75,22 @@ function Sidebar() {
                 Audit Logs
             </div>
 
+
+            {/* AI ANALYTICS */}
+
+            <div
+                className={getClass("/analytics")}
+                style={{ cursor: "pointer" }}
+                onClick={() => navigate("/analytics")}
+            >
+                🤖 AI Analytics
+            </div>
+
+
             <hr className="border-secondary mt-5" />
+
+
+            {/* LOGOUT */}
 
             <button
                 className="btn btn-outline-light w-100 mt-3"

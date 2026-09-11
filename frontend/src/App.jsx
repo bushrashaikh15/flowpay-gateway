@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import PaymentIntents from "./pages/PaymentIntents";
 import Transactions from "./pages/Transactions";
 import AuditLogs from "./pages/AuditLogs";
+import Analytics from "./pages/Analytics";
 
 function App() {
 
@@ -52,6 +53,11 @@ function App() {
                 <Route
                     path="/audit-logs"
                     element={<AuditLogs />}
+                />
+
+                <Route
+                    path="/analytics"
+                    element={<Analytics />}
                 />
 
             </Routes>
