@@ -31,6 +31,14 @@ public class PaymentIntent {
     @JoinColumn(name = "merchant_id", nullable = false)
     private Merchant merchant;
 
+    // ============================================================
+    // OPTIMISTIC LOCKING
+    // ============================================================
+
+    @Version
+    @Column(nullable = false)
+    private Long version;
+
     public PaymentIntent() {
     }
 
@@ -80,5 +88,13 @@ public class PaymentIntent {
 
     public void setMerchant(Merchant merchant) {
         this.merchant = merchant;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 }

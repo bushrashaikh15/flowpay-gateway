@@ -1,12 +1,13 @@
 package com.flowpay.flowpay.exception;
 
+import jakarta.persistence.OptimisticLockException;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -16,8 +17,9 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     // ============================================================
-    // VALIDATION EXCEPTION
+    // UNAUTHORIZED RESOURCE
     // ============================================================
+
     @ExceptionHandler(UnauthorizedResourceException.class)
     public ResponseEntity<Map<String, Object>> handleUnauthorizedResource(
             UnauthorizedResourceException ex) {
@@ -34,6 +36,10 @@ public class GlobalExceptionHandler {
                 HttpStatus.FORBIDDEN
         );
     }
+
+    // ============================================================
+    // VALIDATION EXCEPTION
+    // ============================================================
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, String>> handleValidationExceptions(
@@ -99,6 +105,45 @@ public class GlobalExceptionHandler {
     }
 
     // ============================================================
+    // OPTIMISTIC LOCKING
+    // ============================================================
+
+    @ExceptionHandler({
+            OptimisticLockException.class,
+            ObjectOptimisticLockingFailureException.class
+    })
+    public ResponseEntity<Map<String, Object>> handleOptimisticLocking(
+            Exception ex) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        response.put(
+                "timestamp",
+                LocalDateTime.now()
+        );
+
+        response.put(
+                "status",
+                409
+        );
+
+        response.put(
+                "error",
+                "Conflict"
+        );
+
+        response.put(
+                "message",
+                "The payment was modified by another request. Please refresh and try again."
+        );
+
+        return new ResponseEntity<>(
+                response,
+                HttpStatus.CONFLICT
+        );
+    }
+
+    // ============================================================
     // GENERAL EXCEPTION
     // ============================================================
 
@@ -108,10 +153,25 @@ public class GlobalExceptionHandler {
 
         Map<String, Object> response = new HashMap<>();
 
-        response.put("timestamp", LocalDateTime.now());
-        response.put("status", 500);
-        response.put("error", "Internal Server Error");
-        response.put("message", ex.getMessage());
+        response.put(
+                "timestamp",
+                LocalDateTime.now()
+        );
+
+        response.put(
+                "status",
+                500
+        );
+
+        response.put(
+                "error",
+                "Internal Server Error"
+        );
+
+        response.put(
+                "message",
+                ex.getMessage()
+        );
 
         return new ResponseEntity<>(
                 response,
