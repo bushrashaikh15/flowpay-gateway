@@ -15,15 +15,21 @@ function Dashboard() {
         refundedPayments: 0,
         failedPayments: 0,
         capturedAmount: 0,
-        refundedAmount: 0
+        refundedAmount: 0,
+        mostUsedCurrency: null
     });
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [lastUpdated, setLastUpdated] = useState(null);
 
     useEffect(() => {
         fetchDashboardStats();
     }, []);
+
+    // ============================================================
+    // FETCH DASHBOARD SUMMARY
+    // ============================================================
 
     async function fetchDashboardStats() {
 
@@ -33,86 +39,66 @@ function Dashboard() {
             setError("");
 
             const response =
-                await api.get("/api/payment-intents", {
-                    params: {
-                        page: 0,
-                        size: 100
-                    }
-                });
+                await api.get(
+                    "/api/dashboard/summary"
+                );
 
-            const paymentIntents =
-                response.data.content || [];
+            const data = response.data;
 
-            const calculatedStats = {
-                totalPayments: paymentIntents.length,
+            setStats({
+                totalPayments:
+                    data.totalPayments ?? 0,
 
                 createdPayments:
-                paymentIntents.filter(
-                    payment =>
-                        payment.status === "CREATED"
-                ).length,
+                    data.createdPayments ?? 0,
 
                 authorizedPayments:
-                paymentIntents.filter(
-                    payment =>
-                        payment.status === "AUTHORIZED"
-                ).length,
+                    data.authorizedPayments ?? 0,
 
                 capturedPayments:
-                paymentIntents.filter(
-                    payment =>
-                        payment.status === "CAPTURED"
-                ).length,
+                    data.capturedPayments ?? 0,
 
                 refundedPayments:
-                paymentIntents.filter(
-                    payment =>
-                        payment.status === "REFUNDED"
-                ).length,
+                    data.refundedPayments ?? 0,
 
                 failedPayments:
-                paymentIntents.filter(
-                    payment =>
-                        payment.status === "FAILED"
-                ).length,
+                    data.failedPayments ?? 0,
 
                 capturedAmount:
-                    paymentIntents
-                        .filter(
-                            payment =>
-                                payment.status === "CAPTURED"
-                        )
-                        .reduce(
-                            (total, payment) =>
-                                total +
-                                Number(payment.amount || 0),
-                            0
-                        ),
+                    Number(data.capturedAmount ?? 0),
 
                 refundedAmount:
-                    paymentIntents
-                        .filter(
-                            payment =>
-                                payment.status === "REFUNDED"
-                        )
-                        .reduce(
-                            (total, payment) =>
-                                total +
-                                Number(payment.amount || 0),
-                            0
-                        )
-            };
+                    Number(data.refundedAmount ?? 0),
 
-            setStats(calculatedStats);
+                mostUsedCurrency:
+                    data.mostUsedCurrency ?? null
+            });
+
+            setLastUpdated(
+                new Date()
+            );
 
         } catch (error) {
 
-            console.error(error);
+            console.error(
+                "Dashboard error:",
+                error
+            );
 
-            if (error.response?.status === 401) {
+            if (
+                error.response?.status === 401
+            ) {
 
                 setError(
                     "Session expired or API key is invalid."
+                );
+
+            } else if (
+                error.response?.status === 429
+            ) {
+
+                setError(
+                    "Too many requests. Please wait a moment and refresh."
                 );
 
             } else {
@@ -125,24 +111,72 @@ function Dashboard() {
         } finally {
 
             setLoading(false);
-
         }
     }
 
+    // ============================================================
+    // FORMAT CURRENCY
+    // ============================================================
+
     function formatAmount(amount) {
 
-        return new Intl.NumberFormat(
+        const currency =
+            stats.mostUsedCurrency || "INR";
+
+        try {
+
+            return new Intl.NumberFormat(
+                "en-IN",
+                {
+                    style: "currency",
+                    currency: currency,
+                    maximumFractionDigits: 2
+                }
+            ).format(amount);
+
+        } catch {
+
+            return `${currency} ${Number(amount).toFixed(2)}`;
+        }
+    }
+
+    // ============================================================
+    // LAST UPDATED
+    // ============================================================
+
+    function formatLastUpdated() {
+
+        if (!lastUpdated) {
+            return "";
+        }
+
+        return lastUpdated.toLocaleTimeString(
             "en-IN",
             {
-                style: "currency",
-                currency: "INR",
-                maximumFractionDigits: 2
+                hour: "2-digit",
+                minute: "2-digit"
             }
-        ).format(amount);
+        );
+    }
+
+    // ============================================================
+    // CURRENCY LABEL
+    // ============================================================
+
+    function getCurrencyLabel() {
+
+        return stats.mostUsedCurrency
+            || "No currency data";
     }
 
     const apiKey =
-        localStorage.getItem("flowpay_api_key");
+        localStorage.getItem(
+            "flowpay_api_key"
+        );
+
+    // ============================================================
+    // UI
+    // ============================================================
 
     return (
 
@@ -150,15 +184,21 @@ function Dashboard() {
 
             <div className="row">
 
-                {/* REUSABLE SIDEBAR */}
+                {/* ==================================================
+                    SIDEBAR
+                ================================================== */}
 
                 <Sidebar />
 
-                {/* MAIN CONTENT */}
+                {/* ==================================================
+                    MAIN CONTENT
+                ================================================== */}
 
                 <div className="col-md-10 p-4">
 
-                    {/* HEADER */}
+                    {/* ==================================================
+                        HEADER
+                    ================================================== */}
 
                     <div className="d-flex justify-content-between align-items-center mb-4">
 
@@ -174,29 +214,63 @@ function Dashboard() {
 
                         </div>
 
-                        <button
-                            className="btn btn-outline-dark"
-                            onClick={fetchDashboardStats}
-                            disabled={loading}
-                        >
-                            ↻ Refresh
-                        </button>
+                        <div className="d-flex align-items-center gap-3">
+
+                            {lastUpdated && (
+
+                                <small className="text-muted">
+                                    Last updated:{" "}
+                                    {formatLastUpdated()}
+                                </small>
+
+                            )}
+
+                            <button
+                                className="btn btn-outline-dark"
+                                onClick={
+                                    fetchDashboardStats
+                                }
+                                disabled={loading}
+                            >
+
+                                {loading
+                                    ? "Refreshing..."
+                                    : "↻ Refresh"}
+
+                            </button>
+
+                        </div>
 
                     </div>
 
-
-                    {/* ERROR */}
+                    {/* ==================================================
+                        ERROR
+                    ================================================== */}
 
                     {error && (
 
-                        <div className="alert alert-danger">
-                            {error}
+                        <div className="alert alert-danger d-flex justify-content-between align-items-center">
+
+                            <span>
+                                {error}
+                            </span>
+
+                            <button
+                                className="btn btn-sm btn-outline-danger"
+                                onClick={
+                                    fetchDashboardStats
+                                }
+                            >
+                                Retry
+                            </button>
+
                         </div>
 
                     )}
 
-
-                    {/* STATISTICS */}
+                    {/* ==================================================
+                        TOP STATISTICS
+                    ================================================== */}
 
                     <div className="row">
 
@@ -208,24 +282,44 @@ function Dashboard() {
 
                                 <div className="card-body">
 
-                                    <p className="text-muted mb-2">
-                                        Total Payments
-                                    </p>
+                                    <div className="d-flex justify-content-between align-items-start">
 
-                                    <h2 className="fw-bold mb-0">
+                                        <div>
 
-                                        {loading
-                                            ? "..."
-                                            : stats.totalPayments}
+                                            <p className="text-muted mb-2">
+                                                Total Payments
+                                            </p>
 
-                                    </h2>
+                                            <h2 className="fw-bold mb-1">
+
+                                                {loading
+                                                    ? "..."
+                                                    : stats.totalPayments}
+
+                                            </h2>
+
+                                            <small className="text-muted">
+                                                All payment intents
+                                            </small>
+
+                                        </div>
+
+                                        <div
+                                            className="bg-light rounded p-2"
+                                            style={{
+                                                fontSize: "22px"
+                                            }}
+                                        >
+                                            ◉
+                                        </div>
+
+                                    </div>
 
                                 </div>
 
                             </div>
 
                         </div>
-
 
                         {/* CAPTURED PAYMENTS */}
 
@@ -235,24 +329,44 @@ function Dashboard() {
 
                                 <div className="card-body">
 
-                                    <p className="text-muted mb-2">
-                                        Captured Payments
-                                    </p>
+                                    <div className="d-flex justify-content-between align-items-start">
 
-                                    <h2 className="fw-bold text-success mb-0">
+                                        <div>
 
-                                        {loading
-                                            ? "..."
-                                            : stats.capturedPayments}
+                                            <p className="text-muted mb-2">
+                                                Captured Payments
+                                            </p>
 
-                                    </h2>
+                                            <h2 className="fw-bold text-success mb-1">
+
+                                                {loading
+                                                    ? "..."
+                                                    : stats.capturedPayments}
+
+                                            </h2>
+
+                                            <small className="text-muted">
+                                                Successfully captured
+                                            </small>
+
+                                        </div>
+
+                                        <div
+                                            className="bg-success-subtle rounded p-2"
+                                            style={{
+                                                fontSize: "22px"
+                                            }}
+                                        >
+                                            ✓
+                                        </div>
+
+                                    </div>
 
                                 </div>
 
                             </div>
 
                         </div>
-
 
                         {/* CAPTURED AMOUNT */}
 
@@ -262,26 +376,46 @@ function Dashboard() {
 
                                 <div className="card-body">
 
-                                    <p className="text-muted mb-2">
-                                        Captured Amount
-                                    </p>
+                                    <div className="d-flex justify-content-between align-items-start">
 
-                                    <h2 className="fw-bold mb-0">
+                                        <div>
 
-                                        {loading
-                                            ? "..."
-                                            : formatAmount(
-                                                stats.capturedAmount
-                                            )}
+                                            <p className="text-muted mb-2">
+                                                Captured Amount
+                                            </p>
 
-                                    </h2>
+                                            <h2 className="fw-bold mb-1">
+
+                                                {loading
+                                                    ? "..."
+                                                    : formatAmount(
+                                                        stats.capturedAmount
+                                                    )}
+
+                                            </h2>
+
+                                            <small className="text-muted">
+                                                {getCurrencyLabel()}
+                                            </small>
+
+                                        </div>
+
+                                        <div
+                                            className="bg-light rounded p-2"
+                                            style={{
+                                                fontSize: "22px"
+                                            }}
+                                        >
+                                            ₹
+                                        </div>
+
+                                    </div>
 
                                 </div>
 
                             </div>
 
                         </div>
-
 
                         {/* REFUNDED AMOUNT */}
 
@@ -291,19 +425,40 @@ function Dashboard() {
 
                                 <div className="card-body">
 
-                                    <p className="text-muted mb-2">
-                                        Refunded Amount
-                                    </p>
+                                    <div className="d-flex justify-content-between align-items-start">
 
-                                    <h2 className="fw-bold text-info mb-0">
+                                        <div>
 
-                                        {loading
-                                            ? "..."
-                                            : formatAmount(
-                                                stats.refundedAmount
-                                            )}
+                                            <p className="text-muted mb-2">
+                                                Refunded Amount
+                                            </p>
 
-                                    </h2>
+                                            <h2 className="fw-bold text-info mb-1">
+
+                                                {loading
+                                                    ? "..."
+                                                    : formatAmount(
+                                                        stats.refundedAmount
+                                                    )}
+
+                                            </h2>
+
+                                            <small className="text-muted">
+                                                {getCurrencyLabel()}
+                                            </small>
+
+                                        </div>
+
+                                        <div
+                                            className="bg-info-subtle rounded p-2"
+                                            style={{
+                                                fontSize: "22px"
+                                            }}
+                                        >
+                                            ↩
+                                        </div>
+
+                                    </div>
 
                                 </div>
 
@@ -313,16 +468,29 @@ function Dashboard() {
 
                     </div>
 
-
-                    {/* PAYMENT STATUS */}
+                    {/* ==================================================
+                        PAYMENT STATUS
+                    ================================================== */}
 
                     <div className="card shadow-sm mb-4">
 
                         <div className="card-body">
 
-                            <h5 className="mb-4">
-                                Payment Status
-                            </h5>
+                            <div className="d-flex justify-content-between align-items-center mb-4">
+
+                                <div>
+
+                                    <h5 className="mb-1">
+                                        Payment Status
+                                    </h5>
+
+                                    <small className="text-muted">
+                                        Current distribution of payment intents
+                                    </small>
+
+                                </div>
+
+                            </div>
 
                             <div className="row">
 
@@ -332,12 +500,13 @@ function Dashboard() {
                                         Created
                                     </div>
 
-                                    <h4>
-                                        {stats.createdPayments}
+                                    <h4 className="mt-1">
+                                        {loading
+                                            ? "..."
+                                            : stats.createdPayments}
                                     </h4>
 
                                 </div>
-
 
                                 <div className="col-md-2">
 
@@ -345,12 +514,13 @@ function Dashboard() {
                                         Authorized
                                     </div>
 
-                                    <h4>
-                                        {stats.authorizedPayments}
+                                    <h4 className="mt-1">
+                                        {loading
+                                            ? "..."
+                                            : stats.authorizedPayments}
                                     </h4>
 
                                 </div>
-
 
                                 <div className="col-md-2">
 
@@ -358,12 +528,13 @@ function Dashboard() {
                                         Captured
                                     </div>
 
-                                    <h4 className="text-success">
-                                        {stats.capturedPayments}
+                                    <h4 className="text-success mt-1">
+                                        {loading
+                                            ? "..."
+                                            : stats.capturedPayments}
                                     </h4>
 
                                 </div>
-
 
                                 <div className="col-md-2">
 
@@ -371,12 +542,13 @@ function Dashboard() {
                                         Refunded
                                     </div>
 
-                                    <h4 className="text-info">
-                                        {stats.refundedPayments}
+                                    <h4 className="text-info mt-1">
+                                        {loading
+                                            ? "..."
+                                            : stats.refundedPayments}
                                     </h4>
 
                                 </div>
-
 
                                 <div className="col-md-2">
 
@@ -384,8 +556,24 @@ function Dashboard() {
                                         Failed
                                     </div>
 
-                                    <h4 className="text-danger">
-                                        {stats.failedPayments}
+                                    <h4 className="text-danger mt-1">
+                                        {loading
+                                            ? "..."
+                                            : stats.failedPayments}
+                                    </h4>
+
+                                </div>
+
+                                <div className="col-md-2">
+
+                                    <div className="text-muted">
+                                        Currency
+                                    </div>
+
+                                    <h4 className="mt-1">
+                                        {loading
+                                            ? "..."
+                                            : getCurrencyLabel()}
                                     </h4>
 
                                 </div>
@@ -396,12 +584,11 @@ function Dashboard() {
 
                     </div>
 
-
-                    {/* NAVIGATION CARDS */}
+                    {/* ==================================================
+                        QUICK ACTIONS
+                    ================================================== */}
 
                     <div className="row">
-
-                        {/* PAYMENT INTENTS */}
 
                         <div className="col-md-4 mb-4">
 
@@ -409,14 +596,31 @@ function Dashboard() {
 
                                 <div className="card-body">
 
-                                    <h5 className="card-title">
-                                        Payment Intents
-                                    </h5>
+                                    <div className="d-flex justify-content-between">
 
-                                    <p className="card-text text-muted">
-                                        Create, authorize, capture and
-                                        refund payments.
-                                    </p>
+                                        <div>
+
+                                            <h5 className="card-title">
+                                                Payment Intents
+                                            </h5>
+
+                                            <p className="card-text text-muted">
+                                                Create, authorize, capture
+                                                and refund payments.
+                                            </p>
+
+                                        </div>
+
+                                        <span
+                                            className="text-muted"
+                                            style={{
+                                                fontSize: "24px"
+                                            }}
+                                        >
+                                            $
+                                        </span>
+
+                                    </div>
 
                                     <button
                                         className="btn btn-dark"
@@ -435,23 +639,37 @@ function Dashboard() {
 
                         </div>
 
-
-                        {/* TRANSACTIONS */}
-
                         <div className="col-md-4 mb-4">
 
                             <div className="card shadow-sm h-100">
 
                                 <div className="card-body">
 
-                                    <h5 className="card-title">
-                                        Transactions
-                                    </h5>
+                                    <div className="d-flex justify-content-between">
 
-                                    <p className="card-text text-muted">
-                                        View captured and refunded
-                                        transaction history.
-                                    </p>
+                                        <div>
+
+                                            <h5 className="card-title">
+                                                Transactions
+                                            </h5>
+
+                                            <p className="card-text text-muted">
+                                                View captured and refunded
+                                                transaction history.
+                                            </p>
+
+                                        </div>
+
+                                        <span
+                                            className="text-muted"
+                                            style={{
+                                                fontSize: "24px"
+                                            }}
+                                        >
+                                            ⇄
+                                        </span>
+
+                                    </div>
 
                                     <button
                                         className="btn btn-outline-dark"
@@ -470,23 +688,37 @@ function Dashboard() {
 
                         </div>
 
-
-                        {/* AUDIT LOGS */}
-
                         <div className="col-md-4 mb-4">
 
                             <div className="card shadow-sm h-100">
 
                                 <div className="card-body">
 
-                                    <h5 className="card-title">
-                                        Audit Logs
-                                    </h5>
+                                    <div className="d-flex justify-content-between">
 
-                                    <p className="card-text text-muted">
-                                        Monitor payment activity and
-                                        system events.
-                                    </p>
+                                        <div>
+
+                                            <h5 className="card-title">
+                                                Audit Logs
+                                            </h5>
+
+                                            <p className="card-text text-muted">
+                                                Monitor payment activity
+                                                and system events.
+                                            </p>
+
+                                        </div>
+
+                                        <span
+                                            className="text-muted"
+                                            style={{
+                                                fontSize: "24px"
+                                            }}
+                                        >
+                                            ◫
+                                        </span>
+
+                                    </div>
 
                                     <button
                                         className="btn btn-outline-dark"
@@ -507,10 +739,83 @@ function Dashboard() {
 
                     </div>
 
+                    {/* ==================================================
+                        AI ANALYTICS
+                    ================================================== */}
 
-                    {/* AUTHENTICATION STATUS */}
+                    <div className="card shadow-sm mb-4">
 
-                    <div className="card shadow-sm mt-2">
+                        <div className="card-body">
+
+                            <div className="row align-items-center">
+
+                                <div className="col-md-8">
+
+                                    <span className="badge bg-dark mb-2">
+                                        AI ANALYTICS
+                                    </span>
+
+                                    <h4 className="fw-bold">
+                                        Understand your payment activity
+                                    </h4>
+
+                                    <p className="text-muted mb-3">
+                                        Ask questions about payment
+                                        activity, risk insights and
+                                        monthly performance using
+                                        FlowPay's local AI analytics.
+                                    </p>
+
+                                    <button
+                                        className="btn btn-dark"
+                                        onClick={() =>
+                                            navigate(
+                                                "/analytics"
+                                            )
+                                        }
+                                    >
+                                        Open AI Analytics
+                                    </button>
+
+                                </div>
+
+                                <div className="col-md-4 text-md-end mt-3 mt-md-0">
+
+                                    <div
+                                        className="border rounded p-3"
+                                        style={{
+                                            backgroundColor:
+                                                "#f8f9fa"
+                                        }}
+                                    >
+
+                                        <div className="text-muted small">
+                                            Powered by
+                                        </div>
+
+                                        <div className="fw-bold">
+                                            FlowPay AI
+                                        </div>
+
+                                        <div className="small text-muted">
+                                            Local AI • Ollama
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    {/* ==================================================
+                        SECURITY / AUTHENTICATION
+                    ================================================== */}
+
+                    <div className="card shadow-sm mb-4">
 
                         <div className="card-body">
 
@@ -522,7 +827,13 @@ function Dashboard() {
                                         Authentication Status
                                     </h5>
 
-                                    <p className="text-success mb-0">
+                                    <p
+                                        className={
+                                            apiKey
+                                                ? "text-success mb-0"
+                                                : "text-danger mb-0"
+                                        }
+                                    >
 
                                         {apiKey
                                             ? "API key authenticated successfully"
@@ -532,13 +843,43 @@ function Dashboard() {
 
                                 </div>
 
-                                <span className="badge bg-success">
-                                    SECURE
+                                <span
+                                    className={
+                                        apiKey
+                                            ? "badge bg-success"
+                                            : "badge bg-danger"
+                                    }
+                                >
+                                    {apiKey
+                                        ? "SECURE"
+                                        : "UNAUTHENTICATED"}
                                 </span>
 
                             </div>
 
                         </div>
+
+                    </div>
+
+                    {/* ==================================================
+                        FOOTER
+                    ================================================== */}
+
+                    <div className="text-center text-muted small mt-4 mb-3">
+
+                        FlowPay Payment Gateway Simulator
+
+                        <span className="mx-2">
+                            •
+                        </span>
+
+                        Secure API-key authentication
+
+                        <span className="mx-2">
+                            •
+                        </span>
+
+                        AI-assisted analytics
 
                     </div>
 

@@ -1,4 +1,18 @@
-import { useNavigate, useLocation } from "react-router-dom";
+import {
+    LayoutDashboard,
+    CreditCard,
+    ArrowLeftRight,
+    ShieldCheck,
+    BarChart3,
+    FileText,
+    Webhook,
+    Code2,
+    Settings,
+    LogOut,
+    ChevronRight
+} from "lucide-react";
+
+import { useLocation, useNavigate } from "react-router-dom";
 
 function Sidebar() {
 
@@ -12,92 +26,252 @@ function Sidebar() {
         navigate("/login");
     }
 
-    function getClass(path) {
+    function isActive(path) {
 
-        return location.pathname === path
-            ? "text-white fw-bold mb-3"
-            : "text-secondary mb-3";
+        return location.pathname === path;
+    }
+
+    function menuItemClass(path) {
+
+        return isActive(path)
+            ? "flowpay-menu-item active"
+            : "flowpay-menu-item";
     }
 
     return (
 
-        <div className="col-md-2 bg-dark text-white min-vh-100 p-4">
+        <div className="flowpay-sidebar col-md-2">
 
-            <h3
-                className="mb-5"
-                style={{ cursor: "pointer" }}
+            {/* Brand */}
+
+            <div
+                className="flowpay-brand"
                 onClick={() => navigate("/dashboard")}
             >
-                FlowPay
-            </h3>
 
+                <div className="flowpay-brand-icon">
+                    F
+                </div>
 
-            {/* DASHBOARD */}
+                <div>
 
-            <div
-                className={getClass("/dashboard")}
-                style={{ cursor: "pointer" }}
-                onClick={() => navigate("/dashboard")}
-            >
-                Dashboard
+                    <div className="flowpay-brand-name">
+                        FlowPay
+                    </div>
+
+                    <div className="flowpay-brand-subtitle">
+                        Payment Platform
+                    </div>
+
+                </div>
+
             </div>
 
 
-            {/* PAYMENTS */}
+            {/* Navigation */}
 
-            <div
-                className={getClass("/payment-intents")}
-                style={{ cursor: "pointer" }}
-                onClick={() => navigate("/payment-intents")}
-            >
-                Payments
+            <div className="flowpay-navigation">
+
+
+                {/* Overview */}
+
+                <div className="flowpay-section-title">
+                    OVERVIEW
+                </div>
+
+                <div
+                    className={menuItemClass("/dashboard")}
+                    onClick={() => navigate("/dashboard")}
+                >
+
+                    <LayoutDashboard size={18} />
+
+                    <span>
+                        Dashboard
+                    </span>
+
+                </div>
+
+
+                {/* Payments */}
+
+                <div className="flowpay-section-title">
+                    PAYMENTS
+                </div>
+
+                <div
+                    className={menuItemClass("/payment-intents")}
+                    onClick={() => navigate("/payment-intents")}
+                >
+
+                    <CreditCard size={18} />
+
+                    <span>
+                        Payments
+                    </span>
+
+                </div>
+
+
+                <div
+                    className={menuItemClass("/transactions")}
+                    onClick={() => navigate("/transactions")}
+                >
+
+                    <ArrowLeftRight size={18} />
+
+                    <span>
+                        Transactions
+                    </span>
+
+                </div>
+
+
+                {/* Risk */}
+
+                <div className="flowpay-section-title">
+                    RISK & ANALYTICS
+                </div>
+
+
+                <div
+                    className={menuItemClass("/analytics")}
+                    onClick={() => navigate("/analytics")}
+                >
+
+                    <BarChart3 size={18} />
+
+                    <span>
+                        Analytics
+                    </span>
+
+                </div>
+
+
+                {/* Operations */}
+
+                <div className="flowpay-section-title">
+                    OPERATIONS
+                </div>
+
+
+                <div
+                    className={menuItemClass("/audit-logs")}
+                    onClick={() => navigate("/audit-logs")}
+                >
+
+                    <FileText size={18} />
+
+                    <span>
+                        Audit Logs
+                    </span>
+
+                </div>
+
+
+                {/* Coming soon visual section */}
+
+                <div className="flowpay-section-title">
+                    DEVELOPER
+                </div>
+
+
+                <div className="flowpay-menu-item disabled">
+
+                    <Webhook size={18} />
+
+                    <span>
+                        Webhooks
+                    </span>
+
+                    <span className="flowpay-coming-soon">
+                        API
+                    </span>
+
+                </div>
+
+
+                <div className="flowpay-menu-item disabled">
+
+                    <Code2 size={18} />
+
+                    <span>
+                        API Docs
+                    </span>
+
+                    <span className="flowpay-coming-soon">
+                        SOON
+                    </span>
+
+                </div>
+
+
+                {/* Settings */}
+
+                <div className="flowpay-section-title">
+                    SYSTEM
+                </div>
+
+
+                <div className="flowpay-menu-item disabled">
+
+                    <Settings size={18} />
+
+                    <span>
+                        Settings
+                    </span>
+
+                </div>
+
             </div>
 
 
-            {/* TRANSACTIONS */}
+            {/* Bottom merchant area */}
 
-            <div
-                className={getClass("/transactions")}
-                style={{ cursor: "pointer" }}
-                onClick={() => navigate("/transactions")}
-            >
-                Transactions
+            <div className="flowpay-sidebar-bottom">
+
+
+                <div className="flowpay-merchant-card">
+
+                    <div className="flowpay-merchant-avatar">
+                        M
+                    </div>
+
+                    <div className="flowpay-merchant-info">
+
+                        <div className="flowpay-merchant-name">
+                            Current Merchant
+                        </div>
+
+                        <div className="flowpay-merchant-status">
+
+                            <span className="flowpay-status-dot"></span>
+
+                            API Connected
+
+                        </div>
+
+                    </div>
+
+                    <ChevronRight size={16} />
+
+                </div>
+
+
+                <button
+                    className="flowpay-logout"
+                    onClick={handleLogout}
+                >
+
+                    <LogOut size={17} />
+
+                    <span>
+                        Logout
+                    </span>
+
+                </button>
+
             </div>
-
-
-            {/* AUDIT LOGS */}
-
-            <div
-                className={getClass("/audit-logs")}
-                style={{ cursor: "pointer" }}
-                onClick={() => navigate("/audit-logs")}
-            >
-                Audit Logs
-            </div>
-
-
-            {/* AI ANALYTICS */}
-
-            <div
-                className={getClass("/analytics")}
-                style={{ cursor: "pointer" }}
-                onClick={() => navigate("/analytics")}
-            >
-                🤖 AI Analytics
-            </div>
-
-
-            <hr className="border-secondary mt-5" />
-
-
-            {/* LOGOUT */}
-
-            <button
-                className="btn btn-outline-light w-100 mt-3"
-                onClick={handleLogout}
-            >
-                Logout
-            </button>
 
         </div>
     );

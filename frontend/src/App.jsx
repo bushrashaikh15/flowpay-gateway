@@ -5,12 +5,14 @@ import {
     Navigate
 } from "react-router-dom";
 
+import "./App.css";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import PaymentIntents from "./pages/PaymentIntents";
 import Transactions from "./pages/Transactions";
 import AuditLogs from "./pages/AuditLogs";
 import Analytics from "./pages/Analytics";
+
 
 function App() {
 
